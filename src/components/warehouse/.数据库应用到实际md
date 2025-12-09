@@ -1,0 +1,39 @@
+如何将模拟数据替换成真实数据
+
+准备后端接口
+
+搭建数据库（如 MySQL、PostgreSQL 或 MongoDB），存储产品、经销商、库存、销售等信息。
+
+编写 REST 或 GraphQL 接口，例如：
+
+GET /api/inventory?distributorId=xxx：查询某经销商的产品列表、库存和销量。
+
+GET /api/sales/history?distributorId=xxx：获取销售历史记录。
+
+POST /api/report/ai：调用 AI 生成建议。
+
+在部署或本地开发时，确保接口返回结构与前端预期一致。
+
+前端替换模拟数据
+
+在 InventoryList.tsx、WarehouseMap.tsx 等组件中，用 fetch 或 axios 请求后端接口：
+
+const fetchInventory = async () => {
+  const res = await fetch(`/api/inventory?distributorId=${distributorId}`);
+  return await res.json();
+};
+将原先写死的模拟数组或对象替换为上面函数返回的数据。
+
+推荐使用 React Query 或 SWR 进行数据缓存、加载状态和错误处理。
+
+状态与错误处理
+
+加入加载中、空数据提示及错误提示，避免后端异常导致页面空白。
+
+如需鉴权，可在请求头中添加 token 或其他认证信息。
+
+部署与配置
+
+在前端 .env 中配置接口地址（如 VITE_API_BASE_URL），确保在不同环境指向不同后端。
+
+构建时读取环境变量，生成指向正确 API 的前端代码。

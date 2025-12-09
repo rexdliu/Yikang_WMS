@@ -1,0 +1,14 @@
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.coveragerc
+.pytest_cache/
+.pytest_cache
+.pytest_cache/**
+.DS_Store
+dist/
+node_modules/

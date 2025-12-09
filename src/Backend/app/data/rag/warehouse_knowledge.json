@@ -1,0 +1,32 @@
+[
+  {
+    "id": "inventory-strategy",
+    "title": "库存安全库存策略",
+    "category": "inventory",
+    "content": "将高价值 A 类商品的安全库存系数保持在 1.6-2.0 之间，并结合最近 12 周需求波动进行滚动校准。对低价值 C 类商品采用 0.8-1.0 的系数，以释放仓储空间。"
+  },
+  {
+    "id": "sales-trend",
+    "title": "区域销售趋势分析",
+    "category": "sales",
+    "content": "华北区 2024Q3 的复购率提升 12%，平均订单金额提升到 1899 元。建议对该区域的畅销 SKU 追加 15% 补货，并设置每周二自动生成补货工单。"
+  },
+  {
+    "id": "warehouse-layout",
+    "title": "仓库库位优化建议",
+    "category": "operations",
+    "content": "将高频出库的电子产品集中放置在 A 区靠近分拣台的位置，可减少 18% 的行走距离。通过交叉堆垛减少吞吐瓶颈，每日可节省约 2.5 小时作业时间。"
+  },
+  {
+    "id": "anomaly-detection",
+    "title": "异常检测应急流程",
+    "category": "analytics",
+    "content": "当检测到 48 小时内退货率超过 8% 时，自动触发二级预警：1) 通知品控团队抽检；2) 对应批次停止发货；3) 生成异常报告推送到分析面板。"
+  },
+  {
+    "id": "service-sla",
+    "title": "服务协同与 SLA",
+    "category": "services",
+    "content": "客服团队的首次响应 SLA 设定为 5 分钟，工单关单 SLA 设定为 4 小时。若超过 SLA，需要在服务页面生成加急提醒，并同步给运营值班人员。"
+  }
+]

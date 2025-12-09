@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Logistics Theme - Navy Blue & Orange */
+    --background: 0 0% 100%;
+    --foreground: 214 20% 14%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 214 20% 14%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 214 20% 14%;
+
+    /* Primary: Navy Blue */
+    --primary: 220 91% 20%;
+    --primary-foreground: 0 0% 98%;
+    --primary-light: 220 80% 35%;
+    --primary-dark: 220 100% 15%;
+
+    /* Secondary: Light Blue */
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 220 91% 20%;
+
+    --muted: 214 32% 95%;
+    --muted-foreground: 214 20% 50%;
+
+    /* Accent: Orange */
+    --accent: 21 95% 55%;
+    --accent-foreground: 0 0% 98%;
+    --accent-light: 21 90% 65%;
+    --accent-dark: 21 100% 45%;
+
+    /* Success: Green */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+
+    /* Warning: Yellow-Orange */
+    --warning: 32 95% 55%;
+    --warning-foreground: 214 20% 14%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 214 32% 87%;
+    --input: 214 32% 91%;
+    --ring: 220 91% 20%;
+
+    --radius: 0.5rem;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-light)));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent-light)));
+    --gradient-hero: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+
+    /* Shadows */
+    --shadow-primary: 0 10px 30px -10px hsl(var(--primary) / 0.3);
+    --shadow-accent: 0 10px 30px -10px hsl(var(--accent) / 0.3);
+    --shadow-elegant: 0 4px 20px -4px hsl(var(--primary) / 0.15);
+
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark Theme - Professional */
+    --background: 214 32% 6%;
+    --foreground: 0 0% 95%;
+
+    --card: 214 32% 8%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 214 32% 8%;
+    --popover-foreground: 0 0% 95%;
+
+    /* Primary: Lighter Navy */
+    --primary: 220 80% 60%;
+    --primary-foreground: 214 32% 6%;
+    --primary-light: 220 70% 70%;
+    --primary-dark: 220 90% 50%;
+
+    --secondary: 214 32% 15%;
+    --secondary-foreground: 0 0% 95%;
+
+    --muted: 214 32% 12%;
+    --muted-foreground: 214 20% 65%;
+
+    /* Accent: Bright Orange */
+    --accent: 21 95% 55%;
+    --accent-foreground: 214 32% 6%;
+    --accent-light: 21 90% 65%;
+    --accent-dark: 21 100% 45%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+
+    --warning: 32 95% 55%;
+    --warning-foreground: 214 32% 6%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 214 32% 18%;
+    --input: 214 32% 15%;
+    --ring: 220 80% 60%;
+
+    /* Dark Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-light)));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent-light)));
+    --gradient-hero: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+  border-color: theme('colors.border');  
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.no-animations * {
+  transition: none !important;
+  animation: none !important;
+}
+
+.no-tooltips [role="tooltip"] {
+  display: none !important;
+}

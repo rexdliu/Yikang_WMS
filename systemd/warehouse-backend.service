@@ -1,0 +1,37 @@
+[Unit]
+Description=Product Warehouse Backend Service
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=user
+Group=user
+WorkingDirectory=/home/user/Product_Warehouse/src/Backend
+
+# 环境变量
+Environment="PYTHONPATH=/home/user/Product_Warehouse/src/Backend"
+EnvironmentFile=/home/user/Product_Warehouse/.env.production
+
+# 启动命令
+ExecStart=/home/user/Product_Warehouse/.venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 \
+    --port 8001 \
+    --workers 4 \
+    --log-level info
+
+# 重启策略
+Restart=always
+RestartSec=5
+StartLimitInterval=0
+
+# 资源限制
+LimitNOFILE=65536
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=warehouse-backend
+
+[Install]
+WantedBy=multi-user.target

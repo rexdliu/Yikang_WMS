@@ -1,0 +1,333 @@
+# Product Warehouse - 数据库 Schema 设计
+
+## 业务场景
+物流公司仓库管理系统 - 专门处理 Cummins（康明斯）零件、发动机、机油等产品
+
+---
+
+## 📋 数据表设计
+
+### 1. users (用户表)
+存储系统用户信息
+
+| 字段 | 类型 | 说明 | 约束 |
+|------|------|------|------|
+| id | Integer | 主键 | PK, Auto |
+| username | String | 用户名 | Unique, Not Null |
+| email | String | 邮箱 | Unique, Not Null |
+| phone | String | 手机号 | Unique, Not Null |
+| hashed_password | String | 密码哈希 | Not Null |
+| full_name | String | 全名 | - |
+| role | String | 角色 | Default: 'staff' |
+| is_active | Boolean | 是否激活 | Default: True |
+| is_superuser | Boolean | 是否超级管理员 | Default: False |
+| created_at | DateTime | 创建时间 | Auto |
+| updated_at | DateTime | 更新时间 | Auto |
+
+**索引**: username, email, phone
+
+---
+
+### 2. product_categories (产品分类表)
+产品分类（如：零件、发动机、机油、滤芯等）
+
+| 字段 | 类型 | 说明 | 约束 |
+|------|------|------|------|
+| id | Integer | 主键 | PK, Auto |
+| name | String | 分类名称 | Unique, Not Null |
+| code | String | 分类代码 | Unique |
+| description | Text | 描述 | - |
+| created_at | DateTime | 创建时间 | Auto |
+
+**示例数据**:
+- 发动机 (Engines)
+- 零件 (Parts)
+- 机油 (Oils)
+- 滤芯 (Filters)
+
+---
+
+### 3. products (产品表) - **需要优化**
+Cummins 产品信息
+
+| 字段 | 类型 | 说明 | 约束 |
+|------|------|------|------|
+| id | Integer | 主键 | PK, Auto |
+| name | String | 产品名称 | Not Null |
+| sku | String | SKU编码 | Unique, Not Null |
+| **part_number** | **String** | **Cummins零件号** | **Unique, Index** |
+| **engine_model** | **String** | **适用发动机型号** | **Index** |
+| **manufacturer** | **String** | **制造商** | **Default: 'Cummins'** |
+| description | Text | 产品描述 | - |
+| price | Float | 售价 | Not Null |
+| cost | Float | 成本价 | - |
+| **unit** | **String** | **单位** | **Default: 'pcs'** |
+| category_id | Integer | 分类ID | FK |
+| **min_stock_level** | **Integer** | **最低库存预警** | **Default: 10** |
+| image_url | String | 图片URL | - |
+| is_active | Boolean | 是否启用 | Default: True |
+| created_at | DateTime | 创建时间 | Auto |
+| updated_at | DateTime | 更新时间 | Auto |
+
+**新增字段说明**:
+- `part_number`: Cummins官方零件号，如 "3803682"
+- `engine_model`: 适用的发动机型号，如 "6BT5.9", "ISF2.8"
+- `manufacturer`: 制造商，默认 Cummins
+- `unit`: 单位（pcs=件, box=箱, liter=升）
+- `min_stock_level`: 最低库存预警线
+
+**索引**: sku, part_number, engine_model, category_id
+
+---
+
+### 4. warehouses (仓库表)
+仓库信息
+
+| 字段 | 类型 | 说明 | 约束 |
+|------|------|------|------|
+| id | Integer | 主键 | PK, Auto |
+| name | String | 仓库名称 | Not Null |
+| code | String | 仓库代码 | Unique |
+| location | String | 位置/地址 | - |
+| **capacity** | **Float** | **总容量（立方米）** | - |
+| **current_usage** | **Float** | **当前使用量** | **Default: 0** |
+| **manager_name** | **String** | **仓库管理员** | - |
+| **phone** | **String** | **联系电话** | - |
+| is_active | Boolean | 是否启用 | Default: True |
+| created_at | DateTime | 创建时间 | Auto |
+
+**新增字段说明**:
+- `current_usage`: 当前使用的容量，用于计算使用率
+- `manager_name`: 仓库管理员姓名
+- `phone`: 联系电话
+
+---
+
+### 5. inventories (库存表)
+产品在各仓库的库存数量
+
+| 字段 | 类型 | 说明 | 约束 |
+|------|------|------|------|
+| id | Integer | 主键 | PK, Auto |
+| product_id | Integer | 产品ID | FK, Not Null |
+| warehouse_id | Integer | 仓库ID | FK, Not Null |
+| quantity | Integer | 可用数量 | Default: 0 |
+| reserved_quantity | Integer | 预留数量 | Default: 0 |
+| **location_code** | **String** | **货位编号** | - |
+| updated_at | DateTime | 更新时间 | Auto |
+
+**新增字段说明**:
+- `location_code`: 仓库内具体货位，如 "A-01-03"
+
+**索引**: (product_id, warehouse_id) 联合索引
+
+---
+
+### 6. inventory_transactions (库存交易表)
+库存变动记录
+
+| 字段 | 类型 | 说明 | 约束 |
+|------|------|------|------|
+| id | Integer | 主键 | PK, Auto |
+| product_id | Integer | 产品ID | FK, Not Null |
+| warehouse_id | Integer | 仓库ID | FK, Not Null |
+| transaction_type | String | 交易类型 | Not Null |
+| quantity | Integer | 数量 | Not Null |
+| **user_id** | **Integer** | **操作用户** | **FK** |
+| reference | String | 参考单号 | - |
+| notes | String | 备注 | - |
+| created_at | DateTime | 创建时间 | Auto |
+
+**交易类型 (transaction_type)**:
+- `IN`: 入库
+- `OUT`: 出库
+- `ADJUST`: 调整
+- `TRANSFER`: 调拨
+
+**新增字段说明**:
+- `user_id`: 记录操作人员
+
+---
+
+### 7. distributors (经销商表)
+经销商信息
+
+| 字段 | 类型 | 说明 | 约束 |
+|------|------|------|------|
+| id | Integer | 主键 | PK, Auto |
+| name | String | 经销商名称 | Unique, Not Null |
+| **code** | **String** | **经销商代码** | **Unique** |
+| contact_person | String | 联系人 | Not Null |
+| phone | String | 电话 | Not Null |
+| **email** | **String** | **邮箱** | - |
+| **address** | **String** | **地址** | - |
+| region | String | 区域 | Not Null |
+| **credit_limit** | **Float** | **信用额度** | **Default: 0** |
+| **is_active** | **Boolean** | **是否启用** | **Default: True** |
+| created_at | DateTime | 创建时间 | Auto |
+
+**新增字段说明**:
+- `code`: 经销商代码，如 "DIST001"
+- `email`: 电子邮箱
+- `address`: 详细地址
+- `credit_limit`: 信用额度限制
+- `is_active`: 是否启用该经销商
+
+---
+
+### 8. sales_orders (销售订单表) - **需要优化**
+销售订单信息
+
+| 字段 | 类型 | 说明 | 约束 |
+|------|------|------|------|
+| id | Integer | 主键 | PK, Auto |
+| order_code | String | 订单号 | Unique, Not Null |
+| distributor_id | Integer | 经销商ID | FK, Not Null |
+| product_id | Integer | 产品ID | FK, Not Null |
+| product_name | String | 产品名称 | Not Null |
+| quantity | Integer | 数量 | Not Null |
+| **unit_price** | **Float** | **单价** | **Not Null** |
+| total_value | Float | 总金额 | Not Null |
+| **status** | **String** | **订单状态** | **Default: 'pending'** |
+| **warehouse_id** | **Integer** | **出货仓库** | **FK** |
+| order_date | DateTime | 下单日期 | Not Null |
+| **delivery_date** | **DateTime** | **交货日期** | - |
+| **completed_at** | **DateTime** | **完成时间** | - |
+| **user_id** | **Integer** | **创建人** | **FK** |
+| **notes** | **Text** | **备注** | - |
+| created_at | DateTime | 创建时间 | Auto |
+| updated_at | DateTime | 更新时间 | Auto |
+
+**订单状态 (status)**:
+- `pending`: 待处理
+- `processing`: 处理中
+- `completed`: 已完成
+- `cancelled`: 已取消
+- `shipped`: 已发货
+
+**新增字段说明**:
+- `unit_price`: 单价
+- `status`: 订单状态，用于 Dashboard 统计
+- `warehouse_id`: 出货仓库
+- `delivery_date`: 计划交货日期
+- `completed_at`: 实际完成时间
+- `user_id`: 创建订单的用户
+- `notes`: 订单备注
+
+**索引**: order_code, distributor_id, status, order_date
+
+---
+
+### 9. activity_logs (活动日志表) - **新增**
+统一的活动日志，用于 Dashboard 显示
+
+| 字段 | 类型 | 说明 | 约束 |
+|------|------|------|------|
+| id | Integer | 主键 | PK, Auto |
+| activity_type | String | 活动类型 | Not Null |
+| action | String | 操作描述 | Not Null |
+| item_name | String | 项目名称 | - |
+| user_id | Integer | 操作用户 | FK |
+| reference_id | Integer | 关联ID | - |
+| reference_type | String | 关联类型 | - |
+| created_at | DateTime | 创建时间 | Auto |
+
+**活动类型 (activity_type)**:
+- `inventory`: 库存更新
+- `order`: 订单处理
+- `product`: 产品操作
+- `alert`: 警报
+
+**示例数据**:
+```
+活动类型: inventory, 操作: "库存已更新", 项目: "Cummins 6BT 活塞", 时间: 2分钟前
+活动类型: order, 操作: "订单已处理", 项目: "Order #WH-2024-045", 时间: 15分钟前
+```
+
+---
+
+## 📊 ER 图关系
+
+```
+User (1) ----< (M) SalesOrder
+User (1) ----< (M) InventoryTransaction
+User (1) ----< (M) ActivityLog
+
+ProductCategory (1) ----< (M) Product
+
+Product (1) ----< (M) Inventory
+Product (1) ----< (M) SalesOrder
+Product (1) ----< (M) InventoryTransaction
+
+Warehouse (1) ----< (M) Inventory
+Warehouse (1) ----< (M) InventoryTransaction
+Warehouse (1) ----< (M) SalesOrder
+
+Distributor (1) ----< (M) SalesOrder
+```
+
+---
+
+## 🔄 数据迁移计划
+
+### 第一步：添加新字段到现有表
+
+1. **products 表**:
+   - 添加: part_number, engine_model, manufacturer, unit, min_stock_level
+
+2. **warehouses 表**:
+   - 添加: code, current_usage, manager_name, phone
+
+3. **sales_orders 表**:
+   - 添加: status, unit_price, warehouse_id, delivery_date, completed_at, user_id, notes, updated_at
+
+4. **distributors 表**:
+   - 添加: code, email, address, credit_limit, is_active
+
+5. **inventories 表**:
+   - 添加: location_code
+
+6. **inventory_transactions 表**:
+   - 添加: user_id
+
+7. **users 表**:
+   - 添加: full_name, role
+
+### 第二步：创建新表
+
+1. **activity_logs 表**: 新建活动日志表
+
+---
+
+## 📝 Dashboard API 数据来源
+
+1. **pendingOrders** (待处理订单数):
+   ```sql
+   SELECT COUNT(*) FROM sales_orders 
+   WHERE status IN ('pending', 'processing')
+   ```
+
+2. **warehouseCapacity** (仓库容量使用率):
+   ```sql
+   SELECT 
+     SUM(current_usage) / SUM(capacity) * 100 
+   FROM warehouses 
+   WHERE is_active = true
+   ```
+
+3. **recentActivities** (最近活动):
+   ```sql
+   SELECT * FROM activity_logs 
+   ORDER BY created_at DESC 
+   LIMIT 10
+   ```
+
+4. **aiInsights** (AI洞察):
+   基于规则生成：
+   - 低库存预警: `quantity < min_stock_level`
+   - 热销产品分析
+   - 异常订单检测
+
+---
+
+**最后更新**: 2025-11-10
