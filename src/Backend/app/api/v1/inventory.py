@@ -85,12 +85,41 @@ def update_inventory_item(
     id: int,
     item_in: InventoryUpdate
 ) -> Any:
-    """更新库存项目"""
+    """
+    更新库存项目
+    
+    当库存数量发生变化时，自动创建 InventoryTransaction 记录用于追踪。
+    """
+    from app.models.inventory import InventoryTransaction
+    
     item = inventory_repo.get(db, id=id)
     if not item:
         raise HTTPException(
             status_code=404,
             detail="Inventory item not found"
         )
+    
+    # 记录原始数量
+    original_quantity = item.quantity
+    
+    # 更新库存
     item = inventory_repo.update(db, db_obj=item, obj_in=item_in)
+    
+    # 如果数量发生变化，创建交易记录
+    if item_in.quantity is not None and item_in.quantity != original_quantity:
+        quantity_change = item_in.quantity - original_quantity
+        transaction_type = "IN" if quantity_change > 0 else "OUT"
+        
+        transaction = InventoryTransaction(
+            product_id=item.product_id,
+            warehouse_id=item.warehouse_id,
+            transaction_type=transaction_type,
+            quantity=abs(quantity_change),
+            reference=f"库存调整-{id}",
+            notes=f"库存从 {original_quantity} 调整至 {item_in.quantity}"
+        )
+        db.add(transaction)
+        db.commit()
+    
     return item
+

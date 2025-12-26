@@ -5,13 +5,58 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from app.crud.base import CRUDBase
-from app.models.sales import Distributor, SalesOrder
+from app.models.sales import Distributor, SalesOrder, DeliveryPerson
 from app.schemas.sales import (
     DistributorCreate,
     DistributorUpdate,
     SalesOrderCreate,
     SalesOrderUpdate,
+    DeliveryPersonCreate,
+    DeliveryPersonUpdate,
 )
+
+
+class CRUDDeliveryPerson(CRUDBase[DeliveryPerson, DeliveryPersonCreate, DeliveryPersonUpdate]):
+    """交付人 CRUD 操作"""
+    
+    def get_active(
+        self,
+        db: Session,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[DeliveryPerson]:
+        """获取所有活跃的交付人"""
+        return (
+            db.query(DeliveryPerson)
+            .filter(DeliveryPerson.is_active == True)  # type: ignore[arg-type]
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+    
+    def search(
+        self,
+        db: Session,
+        *,
+        search: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[DeliveryPerson]:
+        """搜索交付人（支持姓名、电话、车牌号搜索）"""
+        query = db.query(DeliveryPerson).filter(DeliveryPerson.is_active == True)  # type: ignore[arg-type]
+        
+        if search and search.strip():
+            search_term = f"%{search.strip()}%"
+            query = query.filter(
+                or_(
+                    DeliveryPerson.name.ilike(search_term),
+                    DeliveryPerson.phone.ilike(search_term),
+                    DeliveryPerson.vehicle_number.ilike(search_term),
+                )
+            )
+        
+        return query.offset(skip).limit(limit).all()
 
 
 class CRUDDistributor(CRUDBase[Distributor, DistributorCreate, DistributorUpdate]):
@@ -116,5 +161,7 @@ class CRUDSalesOrder(CRUDBase[SalesOrder, SalesOrderCreate, SalesOrderUpdate]):
         return query.offset(skip).limit(limit).all()
 
 
+delivery_person = CRUDDeliveryPerson(DeliveryPerson)
 distributor = CRUDDistributor(Distributor)
 sales_order = CRUDSalesOrder(SalesOrder)
+

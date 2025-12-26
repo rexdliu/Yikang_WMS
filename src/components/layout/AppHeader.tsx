@@ -237,18 +237,39 @@ export const AppHeader: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium">通知</h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={loadNotifications}
-                    disabled={notificationsLoading}
-                  >
-                    {notificationsLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      '刷新'
+                  <div className="flex items-center gap-1">
+                    {notifications.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await apiService.clearAllNotifications();
+                            setNotifications([]);
+                            setUnreadCount(0);
+                          } catch (error) {
+                            console.error('清除通知失败:', error);
+                          }
+                        }}
+                        className="text-destructive hover:text-destructive"
+                        title="一键清倒"
+                      >
+                        清空全部
+                      </Button>
                     )}
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadNotifications}
+                      disabled={notificationsLoading}
+                    >
+                      {notificationsLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        '刷新'
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 {notifications.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-4 text-center">暂无通知</p>
@@ -257,9 +278,8 @@ export const AppHeader: React.FC = () => {
                     {notifications.map((notification) => (
                       <div
                         key={notification.id}
-                        className={`flex items-start space-x-2 rounded-lg border p-3 ${
-                          !notification.is_read ? 'bg-accent/50' : ''
-                        }`}
+                        className={`flex items-start space-x-2 rounded-lg border p-3 ${!notification.is_read ? 'bg-accent/50' : ''
+                          }`}
                       >
                         <Badge className={`${getNotificationBadgeColor(notification.notification_type)} text-white mt-1`}>
                           {notification.notification_type}
@@ -299,6 +319,7 @@ export const AppHeader: React.FC = () => {
                 )}
               </div>
             </PopoverContent>
+
           </Popover>
 
           {/* User Menu */}

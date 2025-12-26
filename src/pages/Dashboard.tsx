@@ -19,7 +19,7 @@ import warehouseHero from '@/assets/warehouse-hero.jpg';
 
 
 const Dashboard: React.FC = () => {
-  const [timePeriod, setTimePeriod] = useState<'weekly' | 'daily' | 'monthly'>('weekly');
+  const [timePeriod, setTimePeriod] = useState<'daily' | 'monthly' | 'yearly'>('daily');
   const { addNotification } = useUIStore();
 
   // Dashboard data state
@@ -117,8 +117,8 @@ const Dashboard: React.FC = () => {
     <div className="space-y-6">
       {/* Hero Section */}
       <div className="relative rounded-lg overflow-hidden">
-        <img 
-          src={warehouseHero} 
+        <img
+          src={warehouseHero}
           alt="Warehouse"
           className="w-full h-48 object-cover"
         />
@@ -160,7 +160,7 @@ const Dashboard: React.FC = () => {
         />
       </div>
 
-     {/* 2. 将图表用 Card 包裹，并添加切换按钮 */}
+      {/* 2. 将图表用 Card 包裹，并添加切换按钮 */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>销售与库存趋势</CardTitle>
@@ -168,11 +168,11 @@ const Dashboard: React.FC = () => {
             <Button variant={timePeriod === 'daily' ? 'secondary' : 'outline'} size="sm" onClick={() => setTimePeriod('daily')}>
               按天
             </Button>
-            <Button variant={timePeriod === 'weekly' ? 'secondary' : 'outline'} size="sm" onClick={() => setTimePeriod('weekly')}>
-              按周
-            </Button>
             <Button variant={timePeriod === 'monthly' ? 'secondary' : 'outline'} size="sm" onClick={() => setTimePeriod('monthly')}>
               按月
+            </Button>
+            <Button variant={timePeriod === 'yearly' ? 'secondary' : 'outline'} size="sm" onClick={() => setTimePeriod('yearly')}>
+              按年
             </Button>
           </div>
         </CardHeader>
@@ -242,7 +242,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <p className="text-sm text-muted-foreground">{insight.message}</p>
                   <div className="w-full bg-muted rounded-full h-1">
-                    <div 
+                    <div
                       className="bg-gradient-to-r from-primary to-accent h-1 rounded-full transition-all duration-500"
                       style={{ width: `${insight.confidence}%` }}
                     />

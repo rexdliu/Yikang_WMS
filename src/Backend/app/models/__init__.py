@@ -7,9 +7,11 @@
 from app.models.user import User
 from app.models.product import Product, ProductCategory
 from app.models.inventory import Warehouse, Inventory, InventoryTransaction
-from app.models.sales import Distributor, SalesOrder
+from app.models.sales import Distributor, SalesOrder, DeliveryPerson
 from app.models.activity_log import ActivityLog
 from app.models.notification import Notification
+from app.models.wave import Wave, WaveStatus, WavePriority
+from app.models.shipment import Shipment, ShipmentStatus
 
 __all__ = [
     "User",
@@ -20,6 +22,12 @@ __all__ = [
     "InventoryTransaction",
     "Distributor",
     "SalesOrder",
+    "DeliveryPerson",
     "ActivityLog",
     "Notification",
+    "Wave",
+    "WaveStatus",
+    "WavePriority",
+    "Shipment",
+    "ShipmentStatus",
 ]

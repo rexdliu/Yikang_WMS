@@ -48,6 +48,7 @@ export const CreateOrderDialog = () => {
 
   // 表单状态
   const [distributorId, setDistributorId] = useState<number>(0);
+  const [deliveryPersonId, setDeliveryPersonId] = useState<number>(0);
   const [productId, setProductId] = useState<number>(0);
   const [productName, setProductName] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
@@ -77,6 +78,12 @@ export const CreateOrderDialog = () => {
     queryFn: () => apiService.getWarehouses(),
   });
 
+  // 获取交付人列表
+  const { data: deliveryPersons, isLoading: deliveryPersonsLoading } = useQuery({
+    queryKey: ['deliveryPersons'],
+    queryFn: () => apiService.getDeliveryPersons(),
+  });
+
   // 创建订单 mutation
   const createMutation = useMutation({
     mutationFn: (data: OrderCreateRequest) => apiService.createOrder(data),
@@ -100,6 +107,7 @@ export const CreateOrderDialog = () => {
 
   const resetForm = () => {
     setDistributorId(0);
+    setDeliveryPersonId(0);
     setProductId(0);
     setProductName('');
     setQuantity(1);
@@ -120,10 +128,10 @@ export const CreateOrderDialog = () => {
     e.preventDefault();
 
     // 验证必填字段
-    if (!distributorId || !productId || quantity <= 0 || unitPrice <= 0) {
+    if (!distributorId || !productId || quantity <= 0 || unitPrice <= 0 || !warehouseId) {
       toast({
         title: '验证失败',
-        description: '请填写所有必填字段，且数量和价格必须大于0',
+        description: '请填写所有必填字段，且数量和价格必须大于0，必须选择仓库',
         variant: 'destructive',
       });
       return;
@@ -139,6 +147,7 @@ export const CreateOrderDialog = () => {
       order_date: new Date().toISOString().split('T')[0],
       delivery_date: deliveryDate || undefined,
       warehouse_id: warehouseId,
+      delivery_person_id: deliveryPersonId || undefined,
       notes: notes || undefined,
     };
 
@@ -152,6 +161,8 @@ export const CreateOrderDialog = () => {
 
   const selectedDistributor = distributors?.find((d) => d.id === distributorId);
   const selectedProduct = products?.find((p) => p.id === productId);
+  const selectedDeliveryPerson = deliveryPersons?.find((dp) => dp.id === deliveryPersonId);
+  const selectedWarehouse = warehouses?.find((w) => w.id === warehouseId);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -198,9 +209,15 @@ export const CreateOrderDialog = () => {
                 </SelectContent>
               </Select>
               {selectedDistributor && (
-                <div className="flex gap-2 text-sm text-muted-foreground">
+                <div className="flex gap-2 text-sm text-muted-foreground flex-wrap">
                   <Badge variant="outline">联系人: {selectedDistributor.contactPerson}</Badge>
                   <Badge variant="outline">电话: {selectedDistributor.phone}</Badge>
+                  {selectedDistributor.email && (
+                    <Badge variant="outline">邮箱: {selectedDistributor.email}</Badge>
+                  )}
+                  {selectedDistributor.address && (
+                    <Badge variant="outline">地址: {selectedDistributor.address}</Badge>
+                  )}
                 </div>
               )}
             </div>
@@ -329,15 +346,17 @@ export const CreateOrderDialog = () => {
               />
             </div>
 
-            {/* 出货仓库 */}
+            {/* 出货仓库 - 必填 */}
             <div className="space-y-2">
-              <Label htmlFor="warehouse">出货仓库</Label>
+              <Label htmlFor="warehouse">
+                出货仓库 <span className="text-red-500">*</span>
+              </Label>
               <Select
                 value={warehouseId ? warehouseId.toString() : ''}
                 onValueChange={(value) => setWarehouseId(parseInt(value))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="选择仓库（可选）" />
+                  <SelectValue placeholder="选择仓库" />
                 </SelectTrigger>
                 <SelectContent>
                   {warehousesLoading ? (
@@ -353,6 +372,56 @@ export const CreateOrderDialog = () => {
                   )}
                 </SelectContent>
               </Select>
+              {selectedWarehouse && (
+                <div className="flex gap-2 text-sm text-muted-foreground flex-wrap">
+                  {selectedWarehouse.location && (
+                    <Badge variant="outline">位置: {selectedWarehouse.location}</Badge>
+                  )}
+                  {selectedWarehouse.manager_name && (
+                    <Badge variant="outline">管理员: {selectedWarehouse.manager_name}</Badge>
+                  )}
+                  {selectedWarehouse.phone && (
+                    <Badge variant="outline">电话: {selectedWarehouse.phone}</Badge>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 交付人/司机 */}
+            <div className="space-y-2">
+              <Label htmlFor="deliveryPerson">交付人/司机</Label>
+              <Select
+                value={deliveryPersonId ? deliveryPersonId.toString() : ''}
+                onValueChange={(value) => setDeliveryPersonId(parseInt(value))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择交付人（可选）" />
+                </SelectTrigger>
+                <SelectContent>
+                  {deliveryPersonsLoading ? (
+                    <SelectItem value="loading" disabled>
+                      加载中...
+                    </SelectItem>
+                  ) : (
+                    deliveryPersons?.map((dp) => (
+                      <SelectItem key={dp.id} value={dp.id.toString()}>
+                        {dp.name} {dp.vehicleNumber && `- ${dp.vehicleNumber}`}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {selectedDeliveryPerson && (
+                <div className="flex gap-2 text-sm text-muted-foreground flex-wrap">
+                  <Badge variant="outline">电话: {selectedDeliveryPerson.phone}</Badge>
+                  {selectedDeliveryPerson.vehicleNumber && (
+                    <Badge variant="outline">车牌: {selectedDeliveryPerson.vehicleNumber}</Badge>
+                  )}
+                  {selectedDeliveryPerson.destination && (
+                    <Badge variant="outline">常用目的地: {selectedDeliveryPerson.destination}</Badge>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 备注 */}

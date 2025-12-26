@@ -14,8 +14,11 @@ from app.schemas.sales import (
     SalesOrderCreate,
     SalesOrderInDB,
     SalesOrderUpdate,
+    DeliveryPersonCreate,
+    DeliveryPersonInDB,
+    DeliveryPersonUpdate,
 )
-from app.models.sales import Distributor, SalesOrder
+from app.models.sales import Distributor, SalesOrder, DeliveryPerson
 from app.models.product import Product
 from app.models.inventory import InventoryTransaction
 from app.api.deps import require_manager_or_above
@@ -78,6 +81,70 @@ def update_distributor(
     return DistributorInDB.model_validate(updated)
 
 
+# ========== DeliveryPerson APIs ==========
+
+def _map_delivery_persons(persons: Iterable[DeliveryPerson]) -> List[DeliveryPersonInDB]:
+    return [DeliveryPersonInDB.model_validate(item) for item in persons]
+
+
+@router.get("/delivery-persons", response_model=List[DeliveryPersonInDB])
+def list_delivery_persons(
+    db: Session = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100,
+    search: Optional[str] = None,
+) -> List[DeliveryPersonInDB]:
+    """
+    查询交付人列表
+    
+    支持筛选条件：
+    - search: 搜索关键词（支持姓名、电话、车牌号搜索）
+    """
+    if search and search.strip():
+        persons = sales_crud.delivery_person.search(db, search=search, skip=skip, limit=limit)
+    else:
+        persons = sales_crud.delivery_person.get_active(db, skip=skip, limit=limit)
+    return _map_delivery_persons(persons)
+
+
+@router.post("/delivery-persons", response_model=DeliveryPersonInDB, status_code=201)
+def create_delivery_person(
+    person_in: DeliveryPersonCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager_or_above)
+) -> DeliveryPersonInDB:
+    """创建交付人，需要管理员权限"""
+    person = sales_crud.delivery_person.create(db, obj_in=person_in)
+    return DeliveryPersonInDB.model_validate(person)
+
+
+@router.put("/delivery-persons/{person_id}", response_model=DeliveryPersonInDB)
+def update_delivery_person(
+    person_id: int,
+    person_in: DeliveryPersonUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager_or_above)
+) -> DeliveryPersonInDB:
+    """更新交付人信息，需要管理员权限"""
+    db_obj = sales_crud.delivery_person.get(db, person_id)
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Delivery person not found")
+    updated = sales_crud.delivery_person.update(db, db_obj=db_obj, obj_in=person_in)
+    return DeliveryPersonInDB.model_validate(updated)
+
+
+@router.get("/delivery-persons/{person_id}", response_model=DeliveryPersonInDB)
+def get_delivery_person(
+    person_id: int,
+    db: Session = Depends(get_db),
+) -> DeliveryPersonInDB:
+    """获取单个交付人信息"""
+    person = sales_crud.delivery_person.get(db, person_id)
+    if not person:
+        raise HTTPException(status_code=404, detail="Delivery person not found")
+    return DeliveryPersonInDB.model_validate(person)
+
+
 @router.get("/orders", response_model=List[SalesOrderInDB])
 def list_sales_orders(
     db: Session = Depends(get_db),
@@ -132,6 +199,38 @@ def list_sales_orders(
     return _map_sales_orders(orders)
 
 
+@router.get("/orders/available-for-shipment", response_model=List[SalesOrderInDB])
+def list_orders_available_for_shipment(
+    db: Session = Depends(get_db),
+    warehouse_id: Optional[int] = None,
+) -> List[SalesOrderInDB]:
+    """
+    获取可分配运输单的订单
+    
+    条件:
+    - 已分配波次 (wave_id IS NOT NULL)
+    - 未分配运输单 (shipment_id IS NULL)
+    - 状态为 processing 或 pending
+    - 可选按仓库过滤
+    """
+    from app.models.wave import Wave, WaveStatus
+    
+    query = db.query(SalesOrder).join(
+        Wave, SalesOrder.wave_id == Wave.id
+    ).filter(
+        SalesOrder.wave_id.isnot(None),
+        SalesOrder.shipment_id.is_(None),
+        SalesOrder.status.in_(["pending", "processing"]),
+        Wave.status.in_([WaveStatus.processing, WaveStatus.completed])
+    )
+    
+    if warehouse_id:
+        query = query.filter(SalesOrder.warehouse_id == warehouse_id)
+    
+    orders = query.order_by(SalesOrder.order_date.desc()).limit(100).all()
+    return _map_sales_orders(orders)
+
+
 @router.post("/orders", response_model=SalesOrderInDB, status_code=201)
 def create_sales_order(
     order_in: SalesOrderCreateRequest,
@@ -183,6 +282,7 @@ def create_sales_order(
         total_value=order_in.total_value,
         order_date=datetime.now(),
         warehouse_id=order_in.warehouse_id,
+        delivery_person_id=order_in.delivery_person_id,
         delivery_date=order_in.delivery_date,
         user_id=int(current_user.id),  # type: ignore[arg-type]
         notes=order_in.notes
@@ -223,6 +323,15 @@ def update_sales_order(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager_or_above)
 ) -> SalesOrderInDB:
+    """
+    更新销售订单
+    
+    当订单状态变更时自动处理库存：
+    - shipped/completed: 扣减库存，创建OUT交易记录
+    - cancelled: 如果之前已发货/完成，恢复库存，创建IN交易记录
+    """
+    from app.models.inventory import Inventory
+    
     db_obj = sales_crud.sales_order.get(db, order_id)
     if not db_obj:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -242,6 +351,7 @@ def update_sales_order(
             "pending": "待处理",
             "processing": "处理中",
             "shipped": "已发货",
+            "in_transit": "运输中",
             "completed": "已完成",
             "cancelled": "已取消"
         }
@@ -259,18 +369,57 @@ def update_sales_order(
         reference_type="order"
     )
 
-    # 如果订单状态变更为已发货或已完成，创建出库交易记录
-    if status_changed and order_in.status in ["shipped", "completed"] and old_status not in ["shipped", "completed"]:
-        transaction = InventoryTransaction(
-            product_id=order.product_id,  # type: ignore[arg-type]
-            warehouse_id=order.warehouse_id,  # type: ignore[arg-type]
-            transaction_type="OUT",
-            quantity=order.quantity,  # type: ignore[arg-type]
-            user_id=current_user.id,  # type: ignore[arg-type]
-            reference=f"订单 {order.order_code}",  # type: ignore[arg-type]
-            notes=f"订单出库 - {order.product_name}"  # type: ignore[arg-type]
-        )
-        db.add(transaction)
+    # 处理库存变化 - 只在首次状态转换时调整，避免重复
+    # 定义"已出库"状态集合
+    SHIPPED_STATES = {"shipped", "in_transit", "completed"}
+    
+    if status_changed and order.warehouse_id:
+        # 获取库存记录
+        inventory = db.query(Inventory).filter(
+            Inventory.product_id == order.product_id,
+            Inventory.warehouse_id == order.warehouse_id
+        ).first()
+        
+        old_is_shipped = old_status in SHIPPED_STATES
+        new_is_shipped = order_in.status in SHIPPED_STATES
+        new_is_cancelled = order_in.status == "cancelled"
+        
+        # 情况1: 从未出库状态 → 首次出库状态 (扣减库存)
+        if not old_is_shipped and new_is_shipped:
+            if inventory:
+                inventory.quantity = max(0, inventory.quantity - order.quantity)  # type: ignore[operator]
+            
+            # 创建出库交易记录
+            transaction = InventoryTransaction(
+                product_id=order.product_id,  # type: ignore[arg-type]
+                warehouse_id=order.warehouse_id,  # type: ignore[arg-type]
+                transaction_type="OUT",
+                quantity=order.quantity,  # type: ignore[arg-type]
+                user_id=current_user.id,  # type: ignore[arg-type]
+                reference=f"订单 {order.order_code}",  # type: ignore[arg-type]
+                notes=f"订单出库 - {order.product_name}"  # type: ignore[arg-type]
+            )
+            db.add(transaction)
+        
+        # 情况2: 从已出库状态 → 取消 (恢复库存)
+        elif old_is_shipped and new_is_cancelled:
+            if inventory:
+                inventory.quantity = inventory.quantity + order.quantity  # type: ignore[operator]
+            
+            # 创建入库交易记录（恢复）
+            transaction = InventoryTransaction(
+                product_id=order.product_id,  # type: ignore[arg-type]
+                warehouse_id=order.warehouse_id,  # type: ignore[arg-type]
+                transaction_type="IN",
+                quantity=order.quantity,  # type: ignore[arg-type]
+                user_id=current_user.id,  # type: ignore[arg-type]
+                reference=f"订单取消恢复 {order.order_code}",  # type: ignore[arg-type]
+                notes=f"订单取消，恢复库存 - {order.product_name}"  # type: ignore[arg-type]
+            )
+            db.add(transaction)
+        
+        # 情况3: 在已出库状态之间切换 (shipped ↔ completed ↔ in_transit) - 不调整库存
+        # 情况4: 从未出库状态直接取消 (pending → cancelled) - 不调整库存
 
     # 如果订单状态发生变化，通知订单创建者
     if status_changed and order.user_id and order.user_id != current_user.id:  # type: ignore[comparison-overlap]
@@ -287,3 +436,4 @@ def update_sales_order(
     db.commit()
     db.refresh(order)
     return SalesOrderInDB.model_validate(order)
+

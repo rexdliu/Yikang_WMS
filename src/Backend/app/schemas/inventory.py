@@ -11,32 +11,45 @@
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from decimal import Decimal
 
 # 仓库基础模型
 class WarehouseBase(BaseModel):
     """仓库基础模型"""
     name: str
+    code: Optional[str] = None
     location: Optional[str] = None
     capacity: Optional[float] = None
+    current_usage: Optional[float] = None
+    manager_name: Optional[str] = None
+    phone: Optional[str] = None
     is_active: bool = True
 
 # 创建仓库模型
 class WarehouseCreate(WarehouseBase):
     """创建仓库模型"""
-    pass
+    lat: Optional[Decimal] = None
+    lng: Optional[Decimal] = None
 
 # 更新仓库模型
 class WarehouseUpdate(BaseModel):
     """更新仓库模型"""
     name: Optional[str] = None
+    code: Optional[str] = None
     location: Optional[str] = None
     capacity: Optional[float] = None
+    manager_name: Optional[str] = None
+    phone: Optional[str] = None
+    lat: Optional[Decimal] = None
+    lng: Optional[Decimal] = None
     is_active: Optional[bool] = None
 
 # 仓库数据库模型
 class WarehouseInDB(WarehouseBase):
     """仓库数据库模型"""
     id: int
+    lat: Optional[Decimal] = None
+    lng: Optional[Decimal] = None
     created_at: datetime
     
     class Config:

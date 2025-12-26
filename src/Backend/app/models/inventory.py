@@ -8,7 +8,7 @@
 3. InventoryTransaction - 库存交易模型
 """
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Index, Boolean, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Index, Boolean, Text, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -30,8 +30,13 @@ class Warehouse(Base):
     current_usage = Column(Float, default=0.0)  # 当前使用量（用于计算容量使用率）
     manager_name = Column(String(100))  # 仓库管理员姓名
     phone = Column(String(20))  # 联系电话
+    lat = Column(Numeric(10, 7), nullable=True)  # 纬度（高德地图坐标）
+    lng = Column(Numeric(10, 7), nullable=True)  # 经度（高德地图坐标）
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # 关系
+    shipments = relationship("Shipment", back_populates="origin_warehouse")
 
 class Inventory(Base):
     """

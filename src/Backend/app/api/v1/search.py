@@ -75,7 +75,7 @@ def global_search(
             id=order.id, # type: ignore[arg-type]
             title=order.order_code, # type: ignore[arg-type]
             subtitle=f"产品: {order.product_name} | 状态: {order.status}",
-            url=f"/sales/orders/{order.id}"
+            url=f"/orders?search={order.order_code}"  # 跳转到订单页面并搜索
         ))
 
     # 搜索经销商
@@ -93,7 +93,7 @@ def global_search(
             id=dist.id, # type: ignore[arg-type]
             title=dist.name, # type: ignore[arg-type]
             subtitle=f"代码: {dist.code or 'N/A'} | 区域: {dist.region}",
-            url=f"/sales/distributors/{dist.id}"
+            url=f"/orders?distributor={dist.name}"  # 跳转到订单页面筛选该经销商
         ))
 
     # 搜索仓库
@@ -110,7 +110,7 @@ def global_search(
             id=wh.id, # type: ignore[arg-type]
             title=wh.name, # type: ignore[arg-type]
             subtitle=f"代码: {wh.code or 'N/A'} | 位置: {wh.location or 'N/A'}",
-            url=f"/inventory/warehouses/{wh.id}"
+            url=f"/inventory?warehouse={wh.name}"  # 跳转到库存页面筛选该仓库
         ))
 
     # 限制总结果数量

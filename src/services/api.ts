@@ -28,12 +28,29 @@ export interface InventoryItem {
   updatedAt?: string;
 }
 
+
 export interface Distributor {
   id: number;
   name: string;
+  code?: string;
   contactPerson: string;
   phone: string;
+  email?: string;
+  address?: string;
   region: string;
+  creditLimit?: number;
+  isActive?: boolean;
+  createdAt: string;
+}
+
+export interface DeliveryPerson {
+  id: number;
+  name: string;
+  phone: string;
+  email?: string;
+  vehicleNumber?: string;
+  destination?: string;
+  isActive: boolean;
   createdAt: string;
 }
 
@@ -44,10 +61,12 @@ export interface SalesOrder {
   productId: number;
   productName: string;
   quantity: number;
+  unitPrice?: number;
   totalValue: number;
   orderDate: string;
   status: string;
   warehouseId?: number;
+  deliveryPersonId?: number;
   deliveryDate?: string;
   completedAt?: string;
   userId?: number;
@@ -92,9 +111,25 @@ interface InventoryDTO {
 interface DistributorDTO {
   id: number;
   name: string;
+  code?: string;
   contact_person: string;
   phone: string;
+  email?: string;
+  address?: string;
   region: string;
+  credit_limit?: number;
+  is_active?: boolean;
+  created_at: string;
+}
+
+interface DeliveryPersonDTO {
+  id: number;
+  name: string;
+  phone: string;
+  email?: string;
+  vehicle_number?: string;
+  destination?: string;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -105,10 +140,12 @@ interface SalesOrderDTO {
   product_id: number;
   product_name: string;
   quantity: number;
+  unit_price?: number;
   total_value: number;
   order_date: string;
   status: string;
   warehouse_id?: number;
+  delivery_person_id?: number;
   delivery_date?: string;
   completed_at?: string;
   user_id?: number;
@@ -299,6 +336,7 @@ export interface OrderCreateRequest {
   order_date: string;
   delivery_date?: string;
   warehouse_id?: number;
+  delivery_person_id?: number;
   notes?: string;
 }
 
@@ -543,11 +581,54 @@ class ApiService {
     return data.map((item) => ({
       id: item.id,
       name: item.name,
+      code: item.code,
       contactPerson: item.contact_person,
       phone: item.phone,
+      email: item.email,
+      address: item.address,
       region: item.region,
+      creditLimit: item.credit_limit,
+      isActive: item.is_active,
       createdAt: item.created_at,
     }));
+  }
+
+  async getDeliveryPersons(search?: string): Promise<DeliveryPerson[]> {
+    const params = search && search.trim() ? `?search=${encodeURIComponent(search)}` : '';
+    const data = await this.request<DeliveryPersonDTO[]>(`/api/v1/sales/delivery-persons${params}`);
+    return data.map((item) => ({
+      id: item.id,
+      name: item.name,
+      phone: item.phone,
+      email: item.email,
+      vehicleNumber: item.vehicle_number,
+      destination: item.destination,
+      isActive: item.is_active,
+      createdAt: item.created_at,
+    }));
+  }
+
+  async createDeliveryPerson(data: {
+    name: string;
+    phone: string;
+    email?: string;
+    vehicle_number?: string;
+    destination?: string;
+  }): Promise<DeliveryPerson> {
+    const result = await this.request<DeliveryPersonDTO>('/api/v1/sales/delivery-persons', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return {
+      id: result.id,
+      name: result.name,
+      phone: result.phone,
+      email: result.email,
+      vehicleNumber: result.vehicle_number,
+      destination: result.destination,
+      isActive: result.is_active,
+      createdAt: result.created_at,
+    };
   }
 
   async getSalesOrders(filters?: {
@@ -580,16 +661,30 @@ class ApiService {
       productId: item.product_id,
       productName: item.product_name,
       quantity: item.quantity,
+      unitPrice: item.unit_price,
       totalValue: item.total_value,
       orderDate: item.order_date,
       status: item.status,
       warehouseId: item.warehouse_id,
+      deliveryPersonId: item.delivery_person_id,
       deliveryDate: item.delivery_date,
       completedAt: item.completed_at,
       userId: item.user_id,
       notes: item.notes,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
+    }));
+  }
+
+  async getOrdersAvailableForShipment(warehouseId?: number): Promise<Array<{ id: number; orderCode: string; productName: string; quantity: number; status: string }>> {
+    const params = warehouseId ? `?warehouse_id=${warehouseId}` : '';
+    const data = await this.request<SalesOrderDTO[]>(`/api/v1/sales/orders/available-for-shipment${params}`);
+    return data.map((item) => ({
+      id: item.id,
+      orderCode: item.order_code,
+      productName: item.product_name,
+      quantity: item.quantity,
+      status: item.status
     }));
   }
 
@@ -606,6 +701,7 @@ class ApiService {
 
     if (data.delivery_date !== undefined) requestBody.delivery_date = data.delivery_date;
     if (data.warehouse_id !== undefined) requestBody.warehouse_id = data.warehouse_id;
+    if (data.delivery_person_id !== undefined) requestBody.delivery_person_id = data.delivery_person_id;
     if (data.notes !== undefined) requestBody.notes = data.notes;
 
     const result = await this.request<SalesOrderDTO>('/api/v1/sales/orders', {
@@ -620,10 +716,12 @@ class ApiService {
       productId: result.product_id,
       productName: result.product_name,
       quantity: result.quantity,
+      unitPrice: result.unit_price,
       totalValue: result.total_value,
       orderDate: result.order_date,
       status: result.status,
       warehouseId: result.warehouse_id,
+      deliveryPersonId: result.delivery_person_id,
       deliveryDate: result.delivery_date,
       completedAt: result.completed_at,
       userId: result.user_id,
@@ -879,8 +977,26 @@ class ApiService {
     };
   }
 
-  async getWarehouses(): Promise<Array<{id: number, name: string, location?: string}>> {
-    return this.request<Array<{id: number, name: string, location?: string}>>('/api/v1/inventory/warehouses');
+  async getWarehouses(): Promise<Array<{
+    id: number;
+    name: string;
+    code?: string;
+    location?: string;
+    manager_name?: string;
+    phone?: string;
+    lat?: string | number;
+    lng?: string | number;
+  }>> {
+    return this.request<Array<{
+      id: number;
+      name: string;
+      code?: string;
+      location?: string;
+      manager_name?: string;
+      phone?: string;
+      lat?: string | number;
+      lng?: string | number;
+    }>>('/api/v1/inventory/warehouses');
   }
 
   // Notification methods
@@ -923,6 +1039,437 @@ class ApiService {
     });
     return this.request<SearchResult[]>(`/api/v1/search/?${params}`);
   }
+
+  // ========== Wave Management (波次管理) ==========
+
+  async getWaves(status?: string): Promise<Wave[]> {
+    const params = status ? `?status=${status}` : '';
+    const data = await this.request<any[]>(`/api/v1/waves/${params}`);
+    return data.map(item => ({
+      id: item.id,
+      waveCode: item.wave_code,
+      carrier: item.carrier,
+      region: item.region,
+      warehouseId: item.warehouse_id,
+      orderCount: item.order_count,
+      totalQuantity: item.total_quantity,
+      priority: item.priority,
+      status: item.status,
+      notes: item.notes,
+      createdAt: item.created_at,
+      releasedAt: item.released_at,
+      completedAt: item.completed_at,
+    }));
+  }
+
+  async getWave(waveId: number): Promise<WaveWithOrders> {
+    const data = await this.request<any>(`/api/v1/waves/${waveId}`);
+    return {
+      id: data.id,
+      waveCode: data.wave_code,
+      carrier: data.carrier,
+      region: data.region,
+      warehouseId: data.warehouse_id,
+      orderCount: data.order_count,
+      totalQuantity: data.total_quantity,
+      priority: data.priority,
+      status: data.status,
+      notes: data.notes,
+      createdAt: data.created_at,
+      releasedAt: data.released_at,
+      completedAt: data.completed_at,
+      orders: (data.orders || []).map((o: any) => ({
+        id: o.id,
+        orderCode: o.order_code,
+        productName: o.product_name,
+        quantity: o.quantity,
+        status: o.status
+      })),
+    };
+  }
+
+  async generateWaves(request: WaveGenerateRequest): Promise<Wave[]> {
+    const data = await this.request<any[]>('/api/v1/waves/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        region: request.region,
+        carrier: request.carrier,
+        warehouse_id: request.warehouseId,
+        priority: request.priority,
+        max_orders_per_wave: request.maxOrdersPerWave || 50,
+        order_ids: request.orderIds,
+      }),
+    });
+    return data.map(item => ({
+      id: item.id,
+      waveCode: item.wave_code,
+      carrier: item.carrier,
+      region: item.region,
+      warehouseId: item.warehouse_id,
+      orderCount: item.order_count,
+      totalQuantity: item.total_quantity,
+      priority: item.priority,
+      status: item.status,
+      notes: item.notes,
+      createdAt: item.created_at,
+      releasedAt: item.released_at,
+      completedAt: item.completed_at,
+    }));
+  }
+
+  async releaseWave(waveId: number): Promise<Wave> {
+    const data = await this.request<any>(`/api/v1/waves/${waveId}/release`, {
+      method: 'PUT',
+    });
+    return {
+      id: data.id,
+      waveCode: data.wave_code,
+      carrier: data.carrier,
+      region: data.region,
+      warehouseId: data.warehouse_id,
+      orderCount: data.order_count,
+      totalQuantity: data.total_quantity,
+      priority: data.priority,
+      status: data.status,
+      notes: data.notes,
+      createdAt: data.created_at,
+      releasedAt: data.released_at,
+      completedAt: data.completed_at,
+    };
+  }
+
+  async completeWave(waveId: number): Promise<Wave> {
+    const data = await this.request<any>(`/api/v1/waves/${waveId}/complete`, {
+      method: 'PUT',
+    });
+    return {
+      id: data.id,
+      waveCode: data.wave_code,
+      carrier: data.carrier,
+      region: data.region,
+      warehouseId: data.warehouse_id,
+      orderCount: data.order_count,
+      totalQuantity: data.total_quantity,
+      priority: data.priority,
+      status: data.status,
+      notes: data.notes,
+      createdAt: data.created_at,
+      releasedAt: data.released_at,
+      completedAt: data.completed_at,
+    };
+  }
+
+  // ========== Shipment Management (运输管理) ==========
+
+  async getShipments(status?: string): Promise<Shipment[]> {
+    const params = status ? `?status=${status}` : '';
+    const data = await this.request<any[]>(`/api/v1/shipments/${params}`);
+    return data.map(item => ({
+      id: item.id,
+      shipmentCode: item.shipment_code,
+      deliveryPersonId: item.delivery_person_id,
+      deliveryPersonName: item.delivery_person_name,
+      originWarehouseId: item.origin_warehouse_id,
+      warehouseName: item.warehouse_name,
+      originAddress: item.origin_address,
+      destinationAddress: item.destination_address,
+      departureTime: item.departure_time,
+      estimatedArrival: item.estimated_arrival,
+      actualArrival: item.actual_arrival,
+      totalDistance: item.total_distance,
+      etaMinutes: item.eta_minutes,
+      status: item.status,
+      orderCount: item.order_count,
+      notes: item.notes,
+      createdAt: item.created_at,
+    }));
+  }
+
+  async getShipment(shipmentId: number): Promise<ShipmentWithOrders> {
+    const data = await this.request<any>(`/api/v1/shipments/${shipmentId}`);
+    return {
+      id: data.id,
+      shipmentCode: data.shipment_code,
+      deliveryPersonId: data.delivery_person_id,
+      deliveryPersonName: data.delivery_person_name,
+      originWarehouseId: data.origin_warehouse_id,
+      warehouseName: data.warehouse_name,
+      originAddress: data.origin_address,
+      destinationAddress: data.destination_address,
+      departureTime: data.departure_time,
+      estimatedArrival: data.estimated_arrival,
+      actualArrival: data.actual_arrival,
+      totalDistance: data.total_distance,
+      etaMinutes: data.eta_minutes,
+      status: data.status,
+      orderCount: data.order_count,
+      notes: data.notes,
+      createdAt: data.created_at,
+      orders: (data.orders || []).map((o: any) => ({
+        id: o.id,
+        orderCode: o.order_code,
+        productName: o.product_name,
+        quantity: o.quantity,
+        status: o.status
+      })),
+    };
+  }
+
+  async createShipment(request: ShipmentCreate): Promise<Shipment> {
+    const data = await this.request<any>('/api/v1/shipments/', {
+      method: 'POST',
+      body: JSON.stringify({
+        delivery_person_id: request.deliveryPersonId,
+        origin_warehouse_id: request.originWarehouseId,
+        destination_address: request.destinationAddress,
+        order_ids: request.orderIds,
+        departure_time: request.departureTime,
+        notes: request.notes,
+      }),
+    });
+    return {
+      id: data.id,
+      shipmentCode: data.shipment_code,
+      deliveryPersonId: data.delivery_person_id,
+      deliveryPersonName: data.delivery_person_name,
+      originWarehouseId: data.origin_warehouse_id,
+      warehouseName: data.warehouse_name,
+      originAddress: data.origin_address,
+      destinationAddress: data.destination_address,
+      departureTime: data.departure_time,
+      estimatedArrival: data.estimated_arrival,
+      actualArrival: data.actual_arrival,
+      totalDistance: data.total_distance,
+      etaMinutes: data.eta_minutes,
+      status: data.status,
+      orderCount: data.order_count || 0,
+      notes: data.notes,
+      createdAt: data.created_at,
+    };
+  }
+
+  async updateShipmentStatus(shipmentId: number, status: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/api/v1/shipments/${shipmentId}/status?status=${status}`, {
+      method: 'PUT',
+    });
+  }
+
+  async getShipmentTracking(shipmentId: number): Promise<ShipmentTracking> {
+    const data = await this.request<any>(`/api/v1/shipments/${shipmentId}/tracking`);
+    return {
+      shipmentId: data.shipment_id,
+      shipmentCode: data.shipment_code,
+      status: data.status,
+      originWarehouse: data.origin_warehouse,
+      destinationAddress: data.destination_address,
+      deliveryPerson: data.delivery_person,
+      vehicleNumber: data.vehicle_number,
+      departureTime: data.departure_time,
+      estimatedArrival: data.estimated_arrival,
+      actualArrival: data.actual_arrival,
+      totalDistanceKm: data.total_distance_km,
+      etaMinutes: data.eta_minutes,
+      orders: data.orders || [],
+    };
+  }
+
+  // ========== Route Planning ==========
+
+  async calculateRoute(warehouseId: number, orderIds: number[]): Promise<{
+    origin: { address: string; lat?: number; lng?: number };
+    destinations: Array<{ orderId: number; orderCode: string; address: string; lat?: number; lng?: number; sequence: number }>;
+    totalDistanceKm?: number;
+    totalEtaMinutes?: number;
+  }> {
+    const data = await this.request<any>('/api/v1/shipments/calculate-route', {
+      method: 'POST',
+      body: JSON.stringify({
+        warehouse_id: warehouseId,
+        order_ids: orderIds,
+      }),
+    });
+    return {
+      origin: {
+        address: data.origin?.address || '',
+        lat: data.origin?.lat,
+        lng: data.origin?.lng,
+      },
+      destinations: (data.destinations || []).map((d: any) => ({
+        orderId: d.order_id,
+        orderCode: d.order_code,
+        address: d.address,
+        lat: d.lat,
+        lng: d.lng,
+        sequence: d.sequence,
+      })),
+      totalDistanceKm: data.total_distance_km,
+      totalEtaMinutes: data.total_eta_minutes,
+    };
+  }
+
+  // ========== Notification Clear All ==========
+
+  async clearAllNotifications(): Promise<{ message: string; count: number }> {
+    return this.request<{ message: string; count: number }>('/api/v1/notifications/clear-all', {
+      method: 'DELETE',
+    });
+  }
+
+  // ========== AI Chat ==========
+
+  async aiChat(message: string, conversationId?: string, includeContext: boolean = true): Promise<{
+    answer: string;
+    conversation_id: string;
+    message_id?: string;
+    suggestions: string[];
+  }> {
+    return this.request<{
+      answer: string;
+      conversation_id: string;
+      message_id?: string;
+      suggestions: string[];
+    }>('/api/v1/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        conversation_id: conversationId,
+        include_context: includeContext,
+      }),
+    });
+  }
+
+  async getAiConversations(limit: number = 20): Promise<{
+    data: Array<{ id: string; name: string; created_at: number }>;
+  }> {
+    return this.request<{ data: Array<{ id: string; name: string; created_at: number }> }>(
+      `/api/v1/ai/conversations?limit=${limit}`
+    );
+  }
+
+  async getAiConversationMessages(conversationId: string, limit: number = 20): Promise<{
+    data: Array<{ id: string; query: string; answer: string; created_at: number }>;
+  }> {
+    return this.request<{ data: Array<{ id: string; query: string; answer: string; created_at: number }> }>(
+      `/api/v1/ai/conversations/${conversationId}/messages?limit=${limit}`
+    );
+  }
+
+  async getInventoryContext(): Promise<{
+    summary: string;
+    low_stock_items: Array<{ product_name: string; current_stock: number; safety_stock: number }>;
+    inventory_by_warehouse: Array<{ warehouse: string; product_count: number; total_quantity: number }>;
+  }> {
+    return this.request<{
+      summary: string;
+      low_stock_items: Array<{ product_name: string; current_stock: number; safety_stock: number }>;
+      inventory_by_warehouse: Array<{ warehouse: string; product_count: number; total_quantity: number }>;
+    }>('/api/v1/ai/inventory/context');
+  }
+}
+
+
+// ========== Wave Types ==========
+
+export type WaveStatus = 'pending' | 'processing' | 'completed' | 'cancelled';
+export type WavePriority = 'normal' | 'urgent';
+
+export interface Wave {
+  id: number;
+  waveCode: string;
+  carrier?: string;
+  region?: string;
+  warehouseId?: number;
+  orderCount: number;
+  totalQuantity: number;
+  priority: WavePriority;
+  status: WaveStatus;
+  notes?: string;
+  createdAt: string;
+  releasedAt?: string;
+  completedAt?: string;
+}
+
+export interface WaveWithOrders extends Wave {
+  orders: Array<{
+    id: number;
+    orderCode: string;
+    productName: string;
+    quantity: number;
+    status: string;
+  }>;
+}
+
+export interface WaveGenerateRequest {
+  region?: string;
+  carrier?: string;
+  warehouseId?: number;
+  priority?: WavePriority;
+  maxOrdersPerWave?: number;
+  orderIds?: number[];  // 手动指定订单IDs
+}
+
+// ========== Shipment Types ==========
+
+export type ShipmentStatus = 'planned' | 'loading' | 'in_transit' | 'delivered' | 'cancelled';
+
+export interface Shipment {
+  id: number;
+  shipmentCode: string;
+  deliveryPersonId?: number;
+  deliveryPersonName?: string;
+  originWarehouseId: number;
+  warehouseName?: string;
+  originAddress?: string;
+  destinationAddress: string;
+  departureTime?: string;
+  estimatedArrival?: string;
+  actualArrival?: string;
+  totalDistance?: number;
+  etaMinutes?: number;
+  status: ShipmentStatus;
+  orderCount: number;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface ShipmentWithOrders extends Shipment {
+  orders: Array<{
+    id: number;
+    orderCode: string;
+    productName: string;
+    quantity: number;
+    status: string;
+  }>;
+}
+
+export interface ShipmentCreate {
+  deliveryPersonId?: number;
+  originWarehouseId: number;
+  destinationAddress: string;
+  orderIds: number[];
+  departureTime?: string;
+  notes?: string;
+}
+
+export interface ShipmentTracking {
+  shipmentId: number;
+  shipmentCode: string;
+  status: ShipmentStatus;
+  originWarehouse: string;
+  destinationAddress: string;
+  deliveryPerson?: string;
+  vehicleNumber?: string;
+  departureTime?: string;
+  estimatedArrival?: string;
+  actualArrival?: string;
+  totalDistanceKm?: number;
+  etaMinutes?: number;
+  orders: Array<{
+    orderCode: string;
+    productName: string;
+    quantity: number;
+    status: string;
+  }>;
 }
 
 export const apiService = new ApiService();

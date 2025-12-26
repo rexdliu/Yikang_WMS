@@ -13,14 +13,14 @@ fi
 # 启动后端服务
 echo "正在启动后端服务 (http://127.0.0.1:8001)..."
 source .venv/bin/activate
-PYTHONPATH=src/Backend uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload &
+PYTHONPATH=src/Backend uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload --reload-dir src/Backend &
 BACKEND_PID=$!
 
 # 等待后端服务启动
 sleep 3
 
 # 启动前端服务
-echo "正在启动前端服务 (http://localhost:8003)..."
+echo "正在启动前端服务 (http://localhost:8080)..."
 npm run dev
 
 # 捕获 Ctrl+C 信号以优雅地关闭后台进程

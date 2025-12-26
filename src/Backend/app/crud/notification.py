@@ -114,7 +114,26 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         db.commit()
         return count
 
+    def delete_all_by_user(self, db: Session, *, user_id: int) -> int:
+        """
+        删除用户所有通知（一键清倒）
+
+        Args:
+            db: 数据库会话
+            user_id: 用户ID
+
+        Returns:
+            int: 删除的通知数量
+        """
+        count = db.query(self.model).filter(
+            self.model.user_id == user_id
+        ).delete(synchronize_session='fetch')
+
+        db.commit()
+        return count
+
     def delete_expired(self, db: Session) -> int:
+
         """
         删除所有已过期的通知（超过7天）
 

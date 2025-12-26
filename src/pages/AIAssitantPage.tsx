@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Lightbulb, Package, BarChart3, Bot, Send, Mic, Paperclip, Upload, Volume2, VolumeX, Plus, History } from 'lucide-react';
 import aiIcon from '@/assets/chatBot.svg';
+import { apiService } from '@/services/api';
+import { useToast } from '@/hooks/use-toast';
 
 const AIAssistantPage: React.FC = () => {
   const {
@@ -19,13 +21,15 @@ const AIAssistantPage: React.FC = () => {
     addMessage,
     setLoading
   } = useAIStore();
-  
+
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -49,19 +53,27 @@ const AIAssistantPage: React.FC = () => {
     setUploadedFile(null);
     setLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const responses: { [key: string]: string } = {
-  'low stock': "根据当前库存数据，发现有 3 个商品库存极低，需立即处理：iPhone 14 Pro、办公椅、Samsung Galaxy S23。",
-  'demand': "我已分析你的销售数据。预计“电子产品”类在下个季度的需求将增长 25%，特别是新款智能手机。",
-  'optimize': "为了将拣货效率提升 15%，建议将高频商品如 'APPL-IP14P-256' 移至 A 区，第 1-3 号货架。",
-  'default': "我正在处理你的请求。根据当前数据，我可以生成库存报告、预测补货需求或分析销售趋势。你想重点了解哪一部分？"
-};
-      
-      const responseKey = Object.keys(responses).find(key => currentInput.toLowerCase().includes(key)) || 'default';
-      addMessage(responses[responseKey], 'assistant');
+    try {
+      // 调用真正的 Dify AI API
+      const response = await apiService.aiChat(currentInput, conversationId, true);
+
+      // 保存对话ID用于多轮对话
+      if (response.conversation_id) {
+        setConversationId(response.conversation_id);
+      }
+
+      addMessage(response.answer, 'assistant');
+    } catch (error: any) {
+      console.error('AI Chat error:', error);
+      toast({
+        title: 'AI 服务错误',
+        description: error.message || '无法连接到 AI 服务，请稍后重试',
+        variant: 'destructive',
+      });
+      addMessage('抱歉，我暂时无法处理您的请求。请稍后重试。', 'assistant');
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,7 +122,7 @@ const AIAssistantPage: React.FC = () => {
             </Button>
           </div>
         </div>
-        
+
         {showHistory && (
           <Card>
             <CardHeader className="pb-2">
@@ -135,9 +147,9 @@ const AIAssistantPage: React.FC = () => {
             <Upload className="h-4 w-4" />
             <AlertDescription>
               File ready: {uploadedFile.name}
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setUploadedFile(null)}
                 className="ml-2 h-6 w-6 p-0"
               >
@@ -146,7 +158,7 @@ const AIAssistantPage: React.FC = () => {
             </AlertDescription>
           </Alert>
         )}
-        
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -202,7 +214,7 @@ const AIAssistantPage: React.FC = () => {
                 </div>
               </div>
             ))}
-            
+
             {isLoading && (
               <div className="flex items-start gap-3 justify-start">
                 <Avatar className="h-8 w-8">
@@ -242,9 +254,9 @@ const AIAssistantPage: React.FC = () => {
                   className="hidden"
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
                 />
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-9 w-9"
                   onClick={() => fileInputRef.current?.click()}
                   title="上传文件"
@@ -264,7 +276,7 @@ const AIAssistantPage: React.FC = () => {
                     <Mic className="h-4 w-4" />
                   )}
                 </Button>
-                <Button 
+                <Button
                   onClick={handleSend}
                   disabled={(!input.trim() && !uploadedFile) || isLoading}
                   size="icon"

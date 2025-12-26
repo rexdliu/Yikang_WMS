@@ -11,7 +11,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ShoppingCart,
-  Warehouse
+  Warehouse,
+  Layers,
+  Truck
 } from 'lucide-react';
 import { useUIStore } from '@/stores';
 import { cn } from '@/lib/utils';
@@ -20,6 +22,8 @@ import { Button } from '@/components/ui/button';
 const navigation = [
   { name: '仪表盘', href: '/', icon: LayoutDashboard },
   { name: '订单管理', href: '/orders', icon: ShoppingCart },
+  { name: '波次管理', href: '/waves', icon: Layers },
+  { name: '运输管理', href: '/shipments', icon: Truck },
   { name: '库存调整', href: '/inventory-management', icon: Warehouse },
   { name: '库存查询', href: '/inventory', icon: Package },
   { name: '智能分析', href: '/analytics', icon: BarChart3 },

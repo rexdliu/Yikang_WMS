@@ -342,19 +342,30 @@ class DashboardService:
             # 按天统计最近7天
             labels = [(end_date - timedelta(days=i)).strftime("%m-%d") for i in range(6, -1, -1)]
             date_format = "%Y-%m-%d"
+        elif period == "yearly":
+            # 按年统计最近5年
+            labels = [(end_date - timedelta(days=365*i)).strftime("%Y") for i in range(4, -1, -1)]
+            date_format = "%Y"
         elif period == "monthly":
             # 按月统计最近6个月
             labels = [(end_date - timedelta(days=30*i)).strftime("%Y-%m") for i in range(5, -1, -1)]
             date_format = "%Y-%m"
-        else:  # weekly
-            # 按周统计最近4周
-            labels = [f"第{i+1}周" for i in range(4)]
-            date_format = None  # 周统计需要特殊处理
+        else:  # default to daily
+            # 按天统计最近7天
+            labels = [(end_date - timedelta(days=i)).strftime("%m-%d") for i in range(6, -1, -1)]
+            date_format = "%Y-%m-%d"
 
         # 获取销售数据
+        if period == "yearly":
+            period_format = '%Y'
+        elif period == "monthly":
+            period_format = '%Y-%m'
+        else:
+            period_format = '%Y-%m-%d'
+
         sales_query = (
             db.query(
-                func.date_format(SalesOrder.order_date, '%Y-%m-%d' if period == 'daily' else '%Y-%m').label("period"),
+                func.date_format(SalesOrder.order_date, period_format).label("period"),
                 func.sum(SalesOrder.total_value).label("total_sales")
             )
             .filter(SalesOrder.order_date >= start_date)  # type: ignore[arg-type]
@@ -374,6 +385,10 @@ class DashboardService:
         for i, label in enumerate(labels):
             if period == "daily":
                 date_key = (end_date - timedelta(days=6-i)).strftime("%Y-%m-%d")
+            elif period == "yearly":
+                date_key = (end_date - timedelta(days=365*(4-i))).strftime("%Y")
+            elif period == "monthly":
+                date_key = (end_date - timedelta(days=30*(5-i))).strftime("%Y-%m")
             else:
                 date_key = label
             sales_data[i] = sales_dict.get(date_key, 0.0)
@@ -388,17 +403,17 @@ class DashboardService:
         }
 
     @staticmethod
-    def get_product_movement(db: Session, period: str = "weekly", days: int = 30) -> Dict[str, Any]:
+    def get_product_movement(db: Session, period: str = "daily", days: int = 30) -> Dict[str, Any]:
         """
         获取产品动向数据（出入库统计）
 
         Args:
             db: 数据库会话
-            period: 时间周期
+            period: 时间周期 (daily, monthly, yearly)
             days: 统计天数
 
         Returns:
-            Dict: 包含 labels 和 movement_data 的字典
+            Dict: 包含 labels, inbound_data, outbound_data 的字典
         """
         from app.models.inventory import InventoryTransaction
         from datetime import datetime, timedelta
@@ -408,35 +423,67 @@ class DashboardService:
 
         if period == "daily":
             labels = [(end_date - timedelta(days=i)).strftime("%m-%d") for i in range(6, -1, -1)]
+            period_format = '%Y-%m-%d'
+        elif period == "yearly":
+            labels = [(end_date - timedelta(days=365*i)).strftime("%Y") for i in range(4, -1, -1)]
+            period_format = '%Y'
+            # 扩大日期范围以获取5年数据
+            start_date = end_date - timedelta(days=365*5)
         elif period == "monthly":
             labels = [(end_date - timedelta(days=30*i)).strftime("%Y-%m") for i in range(5, -1, -1)]
-        else:  # weekly
-            labels = [f"第{i+1}周" for i in range(4)]
+            period_format = '%Y-%m'
+        else:  # default to daily
+            labels = [(end_date - timedelta(days=i)).strftime("%m-%d") for i in range(6, -1, -1)]
+            period_format = '%Y-%m-%d'
 
-        # 获取交易统计
-        movements = (
+        # 获取入库统计
+        inbound_query = (
             db.query(
-                func.date_format(InventoryTransaction.created_at, '%Y-%m-%d' if period == 'daily' else '%Y-%m').label("period"),
-                func.sum(func.abs(InventoryTransaction.quantity)).label("total_movement")
+                func.date_format(InventoryTransaction.created_at, period_format).label("period"),
+                func.sum(InventoryTransaction.quantity).label("total_movement")
             )
             .filter(InventoryTransaction.created_at >= start_date)  # type: ignore[arg-type]
+            .filter(InventoryTransaction.transaction_type == 'IN')  # type: ignore[arg-type]
             .group_by("period")
             .all()
         )
 
-        movement_dict = {row.period: int(row.total_movement or 0) for row in movements}
-        movement_data = [0] * len(labels)
+        # 获取出库统计
+        outbound_query = (
+            db.query(
+                func.date_format(InventoryTransaction.created_at, period_format).label("period"),
+                func.sum(func.abs(InventoryTransaction.quantity)).label("total_movement")
+            )
+            .filter(InventoryTransaction.created_at >= start_date)  # type: ignore[arg-type]
+            .filter(InventoryTransaction.transaction_type == 'OUT')  # type: ignore[arg-type]
+            .group_by("period")
+            .all()
+        )
+
+        inbound_dict = {row.period: int(row.total_movement or 0) for row in inbound_query}
+        outbound_dict = {row.period: int(row.total_movement or 0) for row in outbound_query}
+        
+        inbound_data = [0] * len(labels)
+        outbound_data = [0] * len(labels)
 
         for i, label in enumerate(labels):
             if period == "daily":
                 date_key = (end_date - timedelta(days=6-i)).strftime("%Y-%m-%d")
+            elif period == "yearly":
+                date_key = (end_date - timedelta(days=365*(4-i))).strftime("%Y")
+            elif period == "monthly":
+                date_key = (end_date - timedelta(days=30*(5-i))).strftime("%Y-%m")
             else:
                 date_key = label
-            movement_data[i] = movement_dict.get(date_key, 0)
+            inbound_data[i] = inbound_dict.get(date_key, 0)
+            outbound_data[i] = outbound_dict.get(date_key, 0)
 
         return {
             "labels": labels,
-            "movement_data": movement_data,
+            "inbound_data": inbound_data,
+            "outbound_data": outbound_data,
+            # 保持向后兼容
+            "movement_data": [inbound_data[i] + outbound_data[i] for i in range(len(labels))],
         }
 
     @staticmethod

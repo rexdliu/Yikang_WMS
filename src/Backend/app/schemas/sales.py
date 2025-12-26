@@ -3,11 +3,48 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+# ========== DeliveryPerson Schemas ==========
+
+class DeliveryPersonBase(BaseModel):
+    name: str
+    phone: str
+    email: Optional[str] = None
+    vehicle_number: Optional[str] = None
+    destination: Optional[str] = None
+
+
+class DeliveryPersonCreate(DeliveryPersonBase):
+    pass
+
+
+class DeliveryPersonUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    vehicle_number: Optional[str] = None
+    destination: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class DeliveryPersonInDB(DeliveryPersonBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ========== Distributor Schemas ==========
+
 class DistributorBase(BaseModel):
     name: str
     contact_person: str
     phone: str
     region: str
+    code: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
 
 
 class DistributorCreate(DistributorBase):
@@ -19,15 +56,23 @@ class DistributorUpdate(BaseModel):
     contact_person: Optional[str] = None
     phone: Optional[str] = None
     region: Optional[str] = None
+    code: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class DistributorInDB(DistributorBase):
     id: int
+    credit_limit: float = 0.0
+    is_active: bool = True
     created_at: datetime
 
     class Config:
         from_attributes = True
 
+
+# ========== SalesOrder Schemas ==========
 
 class SalesOrderBase(BaseModel):
     order_code: str
@@ -48,6 +93,7 @@ class SalesOrderCreateRequest(BaseModel):
     unit_price: float
     total_value: float
     warehouse_id: Optional[int] = None
+    delivery_person_id: Optional[int] = None
     delivery_date: Optional[datetime] = None
     notes: Optional[str] = None
 
@@ -56,6 +102,7 @@ class SalesOrderCreate(SalesOrderBase):
     """完整的订单创建模型 - 包含所有必填字段"""
     unit_price: float
     warehouse_id: Optional[int] = None
+    delivery_person_id: Optional[int] = None
     delivery_date: Optional[datetime] = None
     user_id: Optional[int] = None
     notes: Optional[str] = None
@@ -67,14 +114,17 @@ class SalesOrderUpdate(BaseModel):
     order_date: Optional[datetime] = None
     status: Optional[str] = None
     warehouse_id: Optional[int] = None
+    delivery_person_id: Optional[int] = None
     delivery_date: Optional[datetime] = None
     notes: Optional[str] = None
 
 
 class SalesOrderInDB(SalesOrderBase):
     id: int
+    unit_price: float
     status: str
     warehouse_id: Optional[int] = None
+    delivery_person_id: Optional[int] = None
     delivery_date: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     user_id: Optional[int] = None
@@ -84,3 +134,4 @@ class SalesOrderInDB(SalesOrderBase):
 
     class Config:
         from_attributes = True
+

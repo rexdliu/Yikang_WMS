@@ -3,25 +3,29 @@
  *
  * 功能：
  * 1. 显示所有库存项目列表
- * 2. 按仓库筛选库存
+ * 2. 按仓库筛选库存（顶部统计区域）
  * 3. 显示低库存警报
- * 4. 调整库存数量（仅管理员和仓库管理员）
+ * 4. 产品入库操作（仅管理员和仓库管理员）
  * 5. 权限控制
+ * 
+ * 注意：出库操作通过订单管理实现
  */
 
 import React, { useState, useEffect } from 'react';
 import { apiService, type InventoryItem, type Product } from '@/services/api';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useSearchState } from '@/contexts/SearchStateContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Warehouse, RefreshCw, Filter, AlertTriangle, Package, Search, Image as ImageIcon } from 'lucide-react';
-import { CreateProductDialog } from '@/components/products/CreateProductDialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Warehouse, RefreshCw, AlertTriangle, Package, Search, Image as ImageIcon, ArrowDownToLine } from 'lucide-react';
+
 interface InventoryWithDetails extends InventoryItem {
   productName?: string;
   productSku?: string;
@@ -31,17 +35,19 @@ interface InventoryWithDetails extends InventoryItem {
 
 const InventoryManagement: React.FC = () => {
   const { canManageInventory, isReadOnly } = usePermissions();
+  const { state: searchState, setInventorySearch, setInventoryCategory, setInventoryWarehouse } = useSearchState();
+
   const [inventory, setInventory] = useState<InventoryWithDetails[]>([]);
   const [filteredInventory, setFilteredInventory] = useState<InventoryWithDetails[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [warehouses, setWarehouses] = useState<Array<{id: number, name: string}>>([]);
+  const [warehouses, setWarehouses] = useState<Array<{ id: number, name: string }>>([]);
   const [loading, setLoading] = useState(true);
-  const [warehouseFilter, setWarehouseFilter] = useState<string>('all');
-  const [stockFilter, setStockFilter] = useState<string>('all'); // all, low, out
-  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // 入库对话框状态
   const [selectedItem, setSelectedItem] = useState<InventoryWithDetails | null>(null);
-  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  const [newQuantity, setNewQuantity] = useState<number>(0);
+  const [inboundDialogOpen, setInboundDialogOpen] = useState(false);
+  const [transactionQuantity, setTransactionQuantity] = useState<number>(0);
+  const [transactionNotes, setTransactionNotes] = useState<string>('');
   const [updating, setUpdating] = useState(false);
 
   // 图片预览状态
@@ -55,12 +61,14 @@ const InventoryManagement: React.FC = () => {
   useEffect(() => {
     let filtered = [...inventory];
 
-    // 仓库筛选
+    // 仓库筛选 - 使用 context state
+    const warehouseFilter = searchState.inventoryWarehouse || 'all';
     if (warehouseFilter !== 'all') {
       filtered = filtered.filter(item => item.warehouseId === parseInt(warehouseFilter));
     }
 
-    // 库存状态筛选
+    // 库存状态筛选 - 使用 context state
+    const stockFilter = searchState.inventoryCategory || 'all';
     if (stockFilter === 'low') {
       filtered = filtered.filter(item =>
         item.minStockLevel !== undefined &&
@@ -71,9 +79,9 @@ const InventoryManagement: React.FC = () => {
       filtered = filtered.filter(item => item.quantity === 0);
     }
 
-    // 搜索筛选（SKU和产品名称）
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    // 搜索筛选 - 使用 context state
+    if (searchState.inventorySearch.trim()) {
+      const query = searchState.inventorySearch.toLowerCase();
       filtered = filtered.filter(item =>
         (item.productSku && item.productSku.toLowerCase().includes(query)) ||
         (item.productName && item.productName.toLowerCase().includes(query))
@@ -81,7 +89,7 @@ const InventoryManagement: React.FC = () => {
     }
 
     setFilteredInventory(filtered);
-  }, [warehouseFilter, stockFilter, searchQuery, inventory]);
+  }, [searchState.inventoryWarehouse, searchState.inventoryCategory, searchState.inventorySearch, inventory]);
 
   const loadData = async () => {
     try {
@@ -95,7 +103,6 @@ const InventoryManagement: React.FC = () => {
       setProducts(productsData);
       setWarehouses(warehousesData);
 
-      // 合并库存数据和产品信息
       const enrichedInventory = inventoryData.map(item => {
         const product = productsData.find(p => p.id === item.productId);
         const warehouse = warehousesData.find(w => w.id === item.warehouseId);
@@ -104,7 +111,7 @@ const InventoryManagement: React.FC = () => {
           productName: product?.name,
           productSku: product?.sku,
           warehouseName: warehouse?.name,
-          minStockLevel: 10, // TODO: 从产品模型获取
+          minStockLevel: 10,
         };
       });
 
@@ -117,31 +124,38 @@ const InventoryManagement: React.FC = () => {
     }
   };
 
-  const handleUpdateQuantity = async () => {
-    if (!selectedItem || newQuantity < 0) return;
+  // 入库操作
+  const handleInbound = async () => {
+    if (!selectedItem || transactionQuantity <= 0) return;
 
     try {
       setUpdating(true);
+      const newQuantity = selectedItem.quantity + transactionQuantity;
       await apiService.updateInventoryQuantity(selectedItem.id, newQuantity);
       await loadData();
-      setUpdateDialogOpen(false);
-      setSelectedItem(null);
-      setNewQuantity(0);
+      setInboundDialogOpen(false);
+      resetTransactionForm();
     } catch (error) {
-      console.error('更新库存数量失败:', error);
-      alert('更新库存数量失败，请重试');
+      console.error('入库操作失败:', error);
+      alert('入库操作失败，请重试');
     } finally {
       setUpdating(false);
     }
   };
 
-  const openUpdateDialog = (item: InventoryWithDetails) => {
-    setSelectedItem(item);
-    setNewQuantity(item.quantity);
-    setUpdateDialogOpen(true);
+  const resetTransactionForm = () => {
+    setSelectedItem(null);
+    setTransactionQuantity(0);
+    setTransactionNotes('');
   };
 
-  // 处理点击SKU查看产品图片
+  const openInboundDialog = (item: InventoryWithDetails) => {
+    setSelectedItem(item);
+    setTransactionQuantity(0);
+    setTransactionNotes('');
+    setInboundDialogOpen(true);
+  };
+
   const handleSkuClick = (productId: number) => {
     const product = products.find(p => p.id === productId);
     if (product) {
@@ -160,13 +174,27 @@ const InventoryManagement: React.FC = () => {
     return <Badge className="bg-green-500 text-white">正常</Badge>;
   };
 
-  const lowStockCount = inventory.filter(item =>
-    item.minStockLevel !== undefined &&
-    item.quantity > 0 &&
-    item.quantity <= item.minStockLevel
-  ).length;
+  const getFilteredStats = () => {
+    const warehouseFilter = searchState.inventoryWarehouse || 'all';
+    const dataToUse = warehouseFilter === 'all'
+      ? inventory
+      : inventory.filter(item => item.warehouseId === parseInt(warehouseFilter));
 
-  const outOfStockCount = inventory.filter(item => item.quantity === 0).length;
+    const total = dataToUse.length;
+    const normal = dataToUse.filter(i =>
+      i.minStockLevel !== undefined && i.quantity > i.minStockLevel
+    ).length;
+    const low = dataToUse.filter(item =>
+      item.minStockLevel !== undefined &&
+      item.quantity > 0 &&
+      item.quantity <= item.minStockLevel
+    ).length;
+    const outOfStock = dataToUse.filter(item => item.quantity === 0).length;
+
+    return { total, normal, low, outOfStock };
+  };
+
+  const stats = getFilteredStats();
 
   if (!canManageInventory && !isReadOnly) {
     return (
@@ -188,7 +216,6 @@ const InventoryManagement: React.FC = () => {
           库存管理
         </h1>
         <div className="flex items-center gap-2">
-          <CreateProductDialog />
           <Button onClick={loadData} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             刷新
@@ -196,8 +223,53 @@ const InventoryManagement: React.FC = () => {
         </div>
       </div>
 
+      {/* 库存统计 - 放在最上面，带仓库筛选 */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <CardTitle>库存统计</CardTitle>
+            <div className="flex items-center gap-2">
+              <Warehouse className="h-4 w-4 text-muted-foreground" />
+              <Select value={searchState.inventoryWarehouse || 'all'} onValueChange={setInventoryWarehouse}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="选择仓库" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部仓库</SelectItem>
+                  {warehouses.map(warehouse => (
+                    <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                      {warehouse.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 border rounded-lg">
+              <div className="text-2xl font-bold">{stats.total}</div>
+              <div className="text-sm text-muted-foreground mt-1">总库存项</div>
+            </div>
+            <div className="text-center p-4 border rounded-lg">
+              <div className="text-2xl font-bold text-green-600">{stats.normal}</div>
+              <div className="text-sm text-muted-foreground mt-1">正常库存</div>
+            </div>
+            <div className="text-center p-4 border rounded-lg">
+              <div className="text-2xl font-bold text-yellow-600">{stats.low}</div>
+              <div className="text-sm text-muted-foreground mt-1">低库存</div>
+            </div>
+            <div className="text-center p-4 border rounded-lg">
+              <div className="text-2xl font-bold text-red-600">{stats.outOfStock}</div>
+              <div className="text-sm text-muted-foreground mt-1">缺货</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* 警报卡片 */}
-      {(lowStockCount > 0 || outOfStockCount > 0) && (
+      {(stats.low > 0 || stats.outOfStock > 0) && (
         <Card className="border-yellow-500">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-yellow-600">
@@ -207,15 +279,15 @@ const InventoryManagement: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="flex gap-6">
-              {lowStockCount > 0 && (
+              {stats.low > 0 && (
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-yellow-500 text-white">{lowStockCount}</Badge>
+                  <Badge className="bg-yellow-500 text-white">{stats.low}</Badge>
                   <span className="text-sm">项低库存</span>
                 </div>
               )}
-              {outOfStockCount > 0 && (
+              {stats.outOfStock > 0 && (
                 <div className="flex items-center gap-2">
-                  <Badge variant="destructive">{outOfStockCount}</Badge>
+                  <Badge variant="destructive">{stats.outOfStock}</Badge>
                   <span className="text-sm">项缺货</span>
                 </div>
               )}
@@ -224,6 +296,7 @@ const InventoryManagement: React.FC = () => {
         </Card>
       )}
 
+      {/* 库存列表 */}
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-4">
@@ -233,29 +306,13 @@ const InventoryManagement: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="搜索SKU或产品名称..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={searchState.inventorySearch}
+                  onChange={(e) => setInventorySearch(e.target.value)}
                   className="pl-10"
                 />
               </div>
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue placeholder="筛选仓库" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部仓库</SelectItem>
-                      {warehouses.map(warehouse => (
-                        <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
-                          {warehouse.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Select value={stockFilter} onValueChange={setStockFilter}>
+                <Select value={searchState.inventoryCategory || 'all'} onValueChange={setInventoryCategory}>
                   <SelectTrigger className="w-[150px]">
                     <SelectValue placeholder="库存状态" />
                   </SelectTrigger>
@@ -316,75 +373,15 @@ const InventoryManagement: React.FC = () => {
                     <TableCell>{getStockStatus(item)}</TableCell>
                     {canManageInventory && (
                       <TableCell>
-                        <Dialog open={updateDialogOpen && selectedItem?.id === item.id} onOpenChange={(open) => {
-                          if (!open) {
-                            setUpdateDialogOpen(false);
-                            setSelectedItem(null);
-                          }
-                        }}>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openUpdateDialog(item)}
-                            >
-                              调整库存
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>调整库存数量</DialogTitle>
-                              <DialogDescription>
-                                {selectedItem?.productName} - {selectedItem?.warehouseName}
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 py-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <Label className="text-sm text-muted-foreground">当前库存</Label>
-                                  <div className="text-2xl font-bold">{selectedItem?.quantity}</div>
-                                </div>
-                                <div>
-                                  <Label className="text-sm text-muted-foreground">预留库存</Label>
-                                  <div className="text-2xl font-bold">{selectedItem?.reservedQuantity}</div>
-                                </div>
-                              </div>
-                              <div className="space-y-2">
-                                <Label>新库存数量</Label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  value={newQuantity}
-                                  onChange={(e) => setNewQuantity(parseInt(e.target.value) || 0)}
-                                  placeholder="输入新的库存数量"
-                                />
-                              </div>
-                              {newQuantity !== selectedItem?.quantity && (
-                                <div className="p-3 bg-muted rounded-lg">
-                                  <div className="text-sm">
-                                    变化: {newQuantity - (selectedItem?.quantity || 0) > 0 ? '+' : ''}
-                                    {newQuantity - (selectedItem?.quantity || 0)}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                onClick={() => {
-                                  setUpdateDialogOpen(false);
-                                  setSelectedItem(null);
-                                }}
-                                disabled={updating}
-                              >
-                                取消
-                              </Button>
-                              <Button onClick={handleUpdateQuantity} disabled={updating}>
-                                {updating ? '更新中...' : '确认更新'}
-                              </Button>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openInboundDialog(item)}
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                        >
+                          <ArrowDownToLine className="h-4 w-4 mr-1" />
+                          入库
+                        </Button>
                       </TableCell>
                     )}
                   </TableRow>
@@ -395,35 +392,86 @@ const InventoryManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>库存统计</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 border rounded-lg">
-              <div className="text-2xl font-bold">{inventory.length}</div>
-              <div className="text-sm text-muted-foreground mt-1">总库存项</div>
-            </div>
-            <div className="text-center p-4 border rounded-lg">
-              <div className="text-2xl font-bold text-green-600">
-                {inventory.filter(i =>
-                  i.minStockLevel !== undefined && i.quantity > i.minStockLevel
-                ).length}
-              </div>
-              <div className="text-sm text-muted-foreground mt-1">正常库存</div>
-            </div>
-            <div className="text-center p-4 border rounded-lg">
-              <div className="text-2xl font-bold text-yellow-600">{lowStockCount}</div>
-              <div className="text-sm text-muted-foreground mt-1">低库存</div>
-            </div>
-            <div className="text-center p-4 border rounded-lg">
-              <div className="text-2xl font-bold text-red-600">{outOfStockCount}</div>
-              <div className="text-sm text-muted-foreground mt-1">缺货</div>
-            </div>
-          </div>
+      {/* 提示：出库通过订单管理 */}
+      <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+        <CardContent className="p-4">
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            💡 <strong>提示：</strong>产品出库通过「订单管理」完成。当订单状态变更为"已发货"或"已完成"时，系统会自动扣减对应产品的库存。
+          </p>
         </CardContent>
       </Card>
+
+      {/* 入库对话框 */}
+      <Dialog open={inboundDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setInboundDialogOpen(false);
+          resetTransactionForm();
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <ArrowDownToLine className="h-5 w-5" />
+              产品入库
+            </DialogTitle>
+            <DialogDescription>
+              {selectedItem?.productName} - {selectedItem?.warehouseName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm text-muted-foreground">当前库存</Label>
+                <div className="text-2xl font-bold">{selectedItem?.quantity}</div>
+              </div>
+              <div>
+                <Label className="text-sm text-muted-foreground">入库后库存</Label>
+                <div className="text-2xl font-bold text-green-600">
+                  {(selectedItem?.quantity || 0) + transactionQuantity}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>入库数量</Label>
+              <Input
+                type="number"
+                min="1"
+                value={transactionQuantity || ''}
+                onChange={(e) => setTransactionQuantity(parseInt(e.target.value) || 0)}
+                placeholder="输入入库数量"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>备注（可选）</Label>
+              <Textarea
+                value={transactionNotes}
+                onChange={(e) => setTransactionNotes(e.target.value)}
+                placeholder="入库原因或备注..."
+                rows={2}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setInboundDialogOpen(false);
+                resetTransactionForm();
+              }}
+              disabled={updating}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleInbound}
+              disabled={updating || transactionQuantity <= 0}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {updating ? '处理中...' : '确认入库'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 产品图片预览对话框 */}
       <Dialog open={imagePreviewOpen} onOpenChange={setImagePreviewOpen}>
@@ -441,21 +489,6 @@ const InventoryManagement: React.FC = () => {
                   src={selectedProductForImage.imageUrl}
                   alt={selectedProductForImage.name}
                   className="max-w-full max-h-[500px] object-contain rounded-lg border"
-                  onError={(e) => {
-                    // 图片加载失败时显示占位符
-                    (e.target as HTMLImageElement).style.display = 'none';
-                    const parent = (e.target as HTMLElement).parentElement;
-                    if (parent) {
-                      parent.innerHTML = `
-                        <div class="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg bg-muted">
-                          <svg class="w-16 h-16 text-muted-foreground mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <p class="text-muted-foreground">图片加载失败</p>
-                        </div>
-                      `;
-                    }
-                  }}
                 />
               </div>
             ) : (
@@ -465,7 +498,6 @@ const InventoryManagement: React.FC = () => {
               </div>
             )}
 
-            {/* 产品详细信息 */}
             {selectedProductForImage && (
               <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
                 <div>
@@ -478,7 +510,7 @@ const InventoryManagement: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">售价</p>
-                  <p className="font-medium">${selectedProductForImage.price.toLocaleString()}</p>
+                  <p className="font-medium">¥{selectedProductForImage.price.toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">状态</p>
@@ -490,12 +522,6 @@ const InventoryManagement: React.FC = () => {
                     )}
                   </p>
                 </div>
-                {selectedProductForImage.description && (
-                  <div className="col-span-2">
-                    <p className="text-sm text-muted-foreground">描述</p>
-                    <p className="text-sm">{selectedProductForImage.description}</p>
-                  </div>
-                )}
               </div>
             )}
           </div>

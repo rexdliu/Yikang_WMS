@@ -214,7 +214,30 @@ Cummins 产品信息
 
 ---
 
-### 8. sales_orders (销售订单表)
+### 8. delivery_persons (交付人表) 🆕
+交付人/司机信息
+
+| 字段 | 类型 | 说明 | 约束 |
+|------|------|------|------|
+| id | Integer | 主键 | PK, Auto |
+| name | String(100) | 交付人姓名 | Not Null |
+| phone | String(20) | 电话号码 | Not Null |
+| email | String(100) | 邮箱 | - |
+| vehicle_number | String(20) | 车牌号 | - |
+| destination | String(200) | 常用目的地 | - |
+| is_active | Boolean | 是否启用 | Default: True |
+| created_at | DateTime | 创建时间 | Auto |
+
+**字段说明**:
+- `vehicle_number`: 车牌号，如 "川A12345"
+- `destination`: 常用配送目的地，用于计算 ETA
+- `is_active`: 是否还在职
+
+**索引**: name, phone, vehicle_number
+
+---
+
+### 9. sales_orders (销售订单表)
 销售订单信息
 
 | 字段 | 类型 | 说明 | 约束 |
@@ -229,8 +252,10 @@ Cummins 产品信息
 | total_value | Decimal(12,2) | 总金额 | Not Null |
 | status | String(20) | 订单状态 | Default: 'pending' |
 | warehouse_id | Integer | 出货仓库 | FK |
+| delivery_person_id | Integer | 交付人 ID 🆕 | FK |
 | order_date | DateTime | 下单日期 | Default: Now |
 | delivery_date | DateTime | 计划交货日期 | - |
+| estimated_arrival_time | DateTime | 预计到达时间 (ETA) 🆕 | - |
 | completed_at | DateTime | 完成时间 | - |
 | user_id | Integer | 创建人 | FK |
 | notes | Text | 备注 | - |
@@ -241,6 +266,7 @@ Cummins 产品信息
 - `pending`: 待处理
 - `processing`: 处理中
 - `shipped`: 已发货
+- `in_transit`: 运输中 🆕
 - `completed`: 已完成
 - `cancelled`: 已取消
 
@@ -250,12 +276,18 @@ Cummins 产品信息
 - `total_value`: 总金额 = unit_price * quantity
 - `status`: 订单状态，用于 Dashboard 统计
 - `warehouse_id`: 出货仓库
+- `delivery_person_id`: 关联的交付人/司机
 - `delivery_date`: 计划交货日期
+- `estimated_arrival_time`: AI/算法计算的预计到达时间
 - `completed_at`: 实际完成时间
 - `user_id`: 创建订单的用户
 - `notes`: 订单备注
 
-**索引**: order_code, distributor_id, status, order_date
+**ETA 计算方法**:
+1. **基础公式**: `ETA = 出发时间 + (距离 / 平均速度) + 装卸时间`
+2. **AI 优化**: 考虑历史运输数据、交通状况、天气因素
+
+**索引**: order_code, distributor_id, delivery_person_id, status, order_date
 
 ---
 
@@ -319,6 +351,74 @@ Cummins 产品信息
 
 ---
 
+### 11. waves (波次表) 🆕
+波次管理，用于订单批量处理
+
+| 字段 | 类型 | 说明 | 约束 |
+|------|------|------|------|
+| id | Integer | 主键 | PK, Auto |
+| wave_code | String(50) | 波次编号 | Unique, Not Null |
+| carrier | String(100) | 承运商 | - |
+| region | String(100) | 区域 | - |
+| warehouse_id | Integer | 仓库ID | FK |
+| order_count | Integer | 订单数量 | Default: 0 |
+| total_quantity | Integer | 总数量 | Default: 0 |
+| priority | String(20) | 优先级 | Default: 'normal' |
+| status | String(20) | 状态 | Default: 'pending' |
+| notes | Text | 备注 | - |
+| created_at | DateTime | 创建时间 | Auto |
+| released_at | DateTime | 释放时间 | - |
+| completed_at | DateTime | 完成时间 | - |
+
+**状态 (status)**:
+- `pending`: 待处理
+- `processing`: 处理中
+- `completed`: 已完成
+- `cancelled`: 已取消
+
+**优先级 (priority)**:
+- `normal`: 普通
+- `urgent`: 紧急
+
+**索引**: wave_code, status, warehouse_id
+
+---
+
+### 12. shipments (运输单表) 🆕
+TMS 运输单管理
+
+| 字段 | 类型 | 说明 | 约束 |
+|------|------|------|------|
+| id | Integer | 主键 | PK, Auto |
+| shipment_code | String(50) | 运输单号 | Unique, Not Null |
+| delivery_person_id | Integer | 司机ID | FK |
+| origin_warehouse_id | Integer | 起点仓库ID | FK, Not Null |
+| origin_address | String(255) | 起点地址 | - |
+| destination_address | String(255) | 目的地址 | Not Null |
+| departure_time | DateTime | 出发时间 | - |
+| estimated_arrival | DateTime | 预计到达 | - |
+| actual_arrival | DateTime | 实际到达 | - |
+| total_distance | Float | 总距离(km) | - |
+| eta_minutes | Integer | 预计用时(分钟) | - |
+| status | String(20) | 状态 | Default: 'planned' |
+| notes | Text | 备注 | - |
+| created_at | DateTime | 创建时间 | Auto |
+
+**状态 (status)**:
+- `planned`: 计划中
+- `loading`: 装货中
+- `in_transit`: 运输中
+- `delivered`: 已送达
+- `cancelled`: 已取消
+
+**关系**:
+- 与 SalesOrder 是一对多关系（一个运输单包含多个订单）
+- 与 DeliveryPerson 是多对一关系
+
+**索引**: shipment_code, status, delivery_person_id, origin_warehouse_id
+
+---
+
 ## 📊 ER 图关系
 
 ```
@@ -335,8 +435,15 @@ Product (1) ----< (M) InventoryTransaction
 Warehouse (1) ----< (M) Inventory
 Warehouse (1) ----< (M) InventoryTransaction
 Warehouse (1) ----< (M) SalesOrder
+Warehouse (1) ----< (M) Shipment 🆕
 
 Distributor (1) ----< (M) SalesOrder
+
+DeliveryPerson (1) ----< (M) SalesOrder
+DeliveryPerson (1) ----< (M) Shipment 🆕
+
+Wave (1) ----< (M) SalesOrder 🆕
+Shipment (1) ----< (M) SalesOrder 🆕
 ```
 
 ---
@@ -353,6 +460,7 @@ Distributor (1) ----< (M) SalesOrder
 
 3. **sales_orders 表**:
    - 添加: status, unit_price, warehouse_id, delivery_date, completed_at, user_id, notes, updated_at
+   - 添加: delivery_person_id, estimated_arrival_time 🆕
 
 4. **distributors 表**:
    - 添加: code, email, address, credit_limit, is_active
@@ -369,6 +477,7 @@ Distributor (1) ----< (M) SalesOrder
 ### 第二步：创建新表
 
 1. **activity_logs 表**: 新建活动日志表
+2. **delivery_persons 表**: 新建交付人表 🆕
 
 ---
 
@@ -400,6 +509,7 @@ Distributor (1) ----< (M) SalesOrder
    - 低库存预警: `quantity < min_stock_level`
    - 热销产品分析
    - 异常订单检测
+   - ETA 预测与实际到达时间对比 🆕
 
 ---
 
@@ -414,7 +524,9 @@ Distributor (1) ----< (M) SalesOrder
 - ✅ inventories表已添加created_at字段
 - ✅ 所有表的updated_at字段已正确配置
 - ✅ warehouse_config表已创建
+- ✅ delivery_persons表已创建 🆕
+- ✅ sales_orders表已添加delivery_person_id和estimated_arrival_time字段 🆕
 
 ---
 
-**最后更新**: 2025-11-12
+**最后更新**: 2025-12-09

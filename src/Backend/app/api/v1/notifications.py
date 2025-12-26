@@ -121,6 +121,25 @@ def mark_all_as_read(
     return {"message": "所有通知已标记为已读", "count": count}
 
 
+@router.delete("/clear-all", response_model=dict)
+def clear_all_notifications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+) -> Any:
+    """
+    清除当前用户所有通知（一键清倒）
+
+    Returns:
+        dict: 包含删除的通知数量
+    """
+    count = notification_crud.delete_all_by_user(
+        db,
+        user_id=int(current_user.id)  # type: ignore[arg-type]
+    )
+
+    return {"message": "所有通知已清除", "count": count}
+
+
 @router.delete("/{notification_id}", response_model=dict)
 def delete_notification(
     notification_id: int,

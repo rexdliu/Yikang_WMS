@@ -39,17 +39,27 @@ class Settings(BaseSettings):
         description="访问令牌有效期（分钟），可通过环境变量覆盖",
     )
 
-    # CORS配置（本地开发默认包含 5173 与 8003）
+    # CORS配置（本地开发默认包含 5173 与 8080）
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "http://localhost:8003",
-        "http://127.0.0.1:8003",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
     ]
 
     # AI服务配置
     OPENAI_API_KEY: Optional[str] = None
     RAG_ENABLED: bool = False
+    
+    # Dify AI 配置
+    DIFY_API_BASE: str = Field(
+        default="http://localhost/v1",
+        description="Dify API 基础 URL",
+    )
+    DIFY_API_KEY: Optional[str] = Field(
+        default=None,
+        description="Dify 应用 API Key",
+    )
 
     @property
     def SQLALCHEMY_DATABASE_URL(self) -> str:

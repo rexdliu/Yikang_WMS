@@ -7,10 +7,13 @@
  * 3. 更新订单状态（仅管理员和仓库管理员）
  * 4. 查看订单详情
  * 5. 权限控制
+ * 6. 搜索状态持久化
  */
 import React, { useState, useEffect } from 'react';
-import { apiService, type SalesOrder } from '@/services/api';
+import { apiService, SalesOrder } from '@/services/api';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useToast } from '@/hooks/use-toast';
+import { useSearchState } from '@/contexts/SearchStateContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,10 +23,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Package, RefreshCw, Filter, Search } from 'lucide-react';
+import { Search, Package, RefreshCw, Filter, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { CreateOrderDialog } from '@/components/orders/CreateOrderDialog';
+import { OrderDetailsDialog } from '@/components/orders/OrderDetailsDialog';
 
 const ORDER_STATUSES = [
   { value: 'pending', label: '待处理', color: 'bg-yellow-500' },
@@ -44,16 +48,20 @@ const getStatusBadge = (status: string) => {
 
 const OrderManagement: React.FC = () => {
   const { canManageOrders, isReadOnly } = usePermissions();
+  const { toast } = useToast();
+  const { state: searchState, setOrderSearch, setOrderStatus } = useSearchState();
+
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [notes, setNotes] = useState('');
   const [updating, setUpdating] = useState(false);
+  // 订单详情弹窗状态
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [detailsOrder, setDetailsOrder] = useState<SalesOrder | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -62,14 +70,14 @@ const OrderManagement: React.FC = () => {
   useEffect(() => {
     let filtered = orders;
 
-    // 状态筛选
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(order => order.status === statusFilter);
+    // 状态筛选 - 使用 context state
+    if (searchState.orderStatus && searchState.orderStatus !== 'all') {
+      filtered = filtered.filter(order => order.status === searchState.orderStatus);
     }
 
-    // 搜索筛选（订单号和产品名称）
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    // 搜索筛选（订单号和产品名称） - 使用 context state
+    if (searchState.orderSearch.trim()) {
+      const query = searchState.orderSearch.toLowerCase();
       filtered = filtered.filter(order =>
         order.orderCode.toLowerCase().includes(query) ||
         order.productName.toLowerCase().includes(query)
@@ -77,7 +85,7 @@ const OrderManagement: React.FC = () => {
     }
 
     setFilteredOrders(filtered);
-  }, [statusFilter, searchQuery, orders]);
+  }, [searchState.orderStatus, searchState.orderSearch, orders]);
 
   const loadOrders = async () => {
     try {
@@ -146,6 +154,29 @@ const OrderManagement: React.FC = () => {
         </div>
       </div>
 
+      {/* 订单统计 - 放在列表上面 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>订单统计</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {ORDER_STATUSES.map(status => {
+              const count = orders.filter(o => o.status === status.value).length;
+              return (
+                <div key={status.value} className="text-center p-4 border rounded-lg">
+                  <div className={`text-2xl font-bold ${status.color.replace('bg-', 'text-')}`}>
+                    {count}
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">{status.label}</div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 订单列表 */}
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-4">
@@ -155,14 +186,14 @@ const OrderManagement: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="搜索订单号或产品名称..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={searchState.orderSearch}
+                  onChange={(e) => setOrderSearch(e.target.value)}
                   className="pl-10"
                 />
               </div>
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select value={searchState.orderStatus || 'all'} onValueChange={setOrderStatus}>
                   <SelectTrigger className="w-[150px]">
                     <SelectValue placeholder="筛选状态" />
                   </SelectTrigger>
@@ -205,7 +236,18 @@ const OrderManagement: React.FC = () => {
               <TableBody>
                 {filteredOrders.map((order) => (
                   <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.orderCode}</TableCell>
+                    <TableCell className="font-medium">
+                      <button
+                        onClick={() => {
+                          setDetailsOrder(order);
+                          setDetailsDialogOpen(true);
+                        }}
+                        className="text-primary hover:underline flex items-center gap-1 font-medium"
+                      >
+                        {order.orderCode}
+                        <ExternalLink className="h-3 w-3" />
+                      </button>
+                    </TableCell>
                     <TableCell>{order.productName}</TableCell>
                     <TableCell>{order.quantity}</TableCell>
                     <TableCell>¥{order.totalValue.toFixed(2)}</TableCell>
@@ -290,26 +332,12 @@ const OrderManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>订单统计</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {ORDER_STATUSES.map(status => {
-              const count = orders.filter(o => o.status === status.value).length;
-              return (
-                <div key={status.value} className="text-center p-4 border rounded-lg">
-                  <div className={`text-2xl font-bold ${status.color.replace('bg-', 'text-')}`}>
-                    {count}
-                  </div>
-                  <div className="text-sm text-muted-foreground mt-1">{status.label}</div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      {/* 订单详情弹窗 */}
+      <OrderDetailsDialog
+        order={detailsOrder}
+        open={detailsDialogOpen}
+        onOpenChange={setDetailsDialogOpen}
+      />
     </div>
   );
 };
