@@ -87,13 +87,13 @@ async def chat_with_ai(
     """
     dify = get_dify_service()
     
-    # 获取实时库存上下文
+    # 使用智能意图识别获取相关数据
     context = None
     if request.include_context:
-        inventory_keywords = ["库存", "产品", "仓库", "订单", "销售", "预警", "补货", "报告", "分析", "多少", "哪些", "统计"]
-        if any(keyword in request.message for keyword in inventory_keywords):
-            analyzer = InventoryAnalyzer(db)
-            context = analyzer.get_context_summary()
+        analyzer = InventoryAnalyzer(db)
+        context = analyzer.query_by_intent(request.message)
+        print(f"[AI Chat] Context generated for message: {request.message[:50]}...")
+    
     
     # 调用 Dify API
     result = await dify.chat(

@@ -172,8 +172,8 @@ export const useUIStore = create<UIState>()(
     {
       name: 'warehouse-settings',
       storage: createJSONStorage(() => localStorage),
-     partialize: (state) => ({ 
-        theme: state.theme, 
+      partialize: (state) => ({
+        theme: state.theme,
         aiSettings: state.aiSettings,
         sidebarOpen: state.sidebarOpen,
         showAnimations: state.showAnimations,
@@ -261,8 +261,8 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
         const status: InventoryProduct['status'] = quantity <= 0
           ? 'out-of-stock'
           : quantity < LOW_STOCK_THRESHOLD
-          ? 'low-stock'
-          : 'in-stock';
+            ? 'low-stock'
+            : 'in-stock';
 
         return {
           id: product.id,
@@ -386,7 +386,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   getSalesByDistributor: (distributorId) =>
     get().orders.filter((order) => order.distributorId === distributorId),
 }));
-// AI Store
+// AI Store with persistence
 interface AIMessage {
   id: string;
   content: string;
@@ -398,35 +398,62 @@ interface AIState {
   isOpen: boolean;
   isLoading: boolean;
   messages: AIMessage[];
+  conversationId: string | null;
   suggestions: string[];
   toggleChat: () => void;
   addMessage: (content: string, role: 'user' | 'assistant') => void;
   setLoading: (loading: boolean) => void;
+  setConversationId: (id: string | null) => void;
+  clearMessages: () => void;
+  newConversation: () => void;
 }
 
-export const useAIStore = create<AIState>((set) => ({
-  isOpen: false,
-  isLoading: false,
-  messages: [
+const INITIAL_MESSAGE: AIMessage = {
+  id: '1',
+  content: '你好！我是益康库存助手。我可以帮您查询库存、分析销售趋势、检查低库存预警等。请问有什么可以帮您？',
+  role: 'assistant',
+  timestamp: new Date()
+};
+
+export const useAIStore = create<AIState>()(
+  persist(
+    (set) => ({
+      isOpen: false,
+      isLoading: false,
+      messages: [INITIAL_MESSAGE],
+      conversationId: null,
+      suggestions: [
+        '显示库存不足的商品',
+        '查看各仓库库存分布',
+        '分析近期销售趋势',
+        '生成库存概览报告'
+      ],
+      toggleChat: () => set((state) => ({ isOpen: !state.isOpen })),
+      addMessage: (content, role) => set((state) => ({
+        messages: [
+          ...state.messages,
+          { id: Date.now().toString(), content, role, timestamp: new Date() }
+        ]
+      })),
+      setLoading: (loading) => set({ isLoading: loading }),
+      setConversationId: (id) => set({ conversationId: id }),
+      clearMessages: () => set({
+        messages: [INITIAL_MESSAGE],
+        conversationId: null
+      }),
+      newConversation: () => set({
+        messages: [INITIAL_MESSAGE],
+        conversationId: null,
+        isOpen: true
+      }),
+    }),
     {
-      id: '1',
-      content: '你好！我是你的 AI 仓库助手。我可以协助你进行库存管理、趋势预测和数据洞察。请问我今天能为你做些什么？',
-      role: 'assistant',
-      timestamp: new Date()
+      name: 'warehouse-ai-chat',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        messages: state.messages,
+        conversationId: state.conversationId,
+      }),
     }
-  ],
- suggestions: [
-  '显示库存不足的商品',
-  '预测下周的需求',
-  '优化仓库布局',
-  '生成库存报告'
-],
-  toggleChat: () => set((state) => ({ isOpen: !state.isOpen })),
-  addMessage: (content, role) => set((state) => ({
-    messages: [
-      ...state.messages,
-      { id: Date.now().toString(), content, role, timestamp: new Date() }
-    ]
-  })),
-  setLoading: (loading) => set({ isLoading: loading }),
-}));
+  )
+);

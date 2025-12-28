@@ -11,14 +11,15 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { useAIStore } from '@/stores';
-import { useUIStore } from '@/stores';  // 新增导入useUIStore
+import { useUIStore } from '@/stores';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import aiIcon from '@/assets/chatBot.svg';
-// The unused Draggable import has been removed to avoid confusion.
+import { apiService } from '@/services/api';
+import { useToast } from '@/hooks/use-toast';
 
 interface DraggableAIProps {
   hidden?: boolean;
@@ -30,13 +31,16 @@ export const DraggableAI: React.FC<DraggableAIProps> = ({ hidden = false }) => {
     isLoading,
     messages,
     suggestions,
+    conversationId,
     toggleChat,
     addMessage,
-    setLoading
+    setLoading,
+    setConversationId
   } = useAIStore();
-  
+
   // 获取AI设置
   const { aiSettings } = useUIStore();
+  const { toast } = useToast();
 
   const [input, setInput] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -80,24 +84,35 @@ export const DraggableAI: React.FC<DraggableAIProps> = ({ hidden = false }) => {
       setPosition(collapsedPosition());
     }
   }, [isOpen]);
+
   const handleSend = async () => {
     if (!input.trim()) return;
+    const currentInput = input;
     addMessage(input, 'user');
     setInput('');
     setLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const responses = [
-        "Based on your current inventory data, I've identified 3 items with critical low stock levels that need immediate attention.",
-        "I've analyzed your warehouse traffic patterns and recommend relocating high-demand items to zones A1-A3 for 23% efficiency improvement.",
-        "Your current stock levels suggest ordering 150 units of iPhone 14 Pro within the next 5 days to meet projected demand.",
-        "I've detected an unusual spike in returns for SKU FURN-OC-001. This may indicate a quality issue that needs investigation."
-      ];
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-      addMessage(randomResponse, 'assistant');
+    try {
+      // 调用真正的 Dify AI API
+      const response = await apiService.aiChat(currentInput, conversationId ?? undefined, true);
+
+      // 保存对话ID用于多轮对话
+      if (response.conversation_id) {
+        setConversationId(response.conversation_id);
+      }
+
+      addMessage(response.answer, 'assistant');
+    } catch (error: any) {
+      console.error('AI Chat error:', error);
+      toast({
+        title: 'AI 服务错误',
+        description: error.message || '无法连接到 AI 服务',
+        variant: 'destructive',
+      });
+      addMessage('抱歉，我暂时无法处理您的请求。请稍后重试。', 'assistant');
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -230,7 +245,7 @@ export const DraggableAI: React.FC<DraggableAIProps> = ({ hidden = false }) => {
         className={cn("flex-shrink-0 flex items-center justify-between p-4 border-b", !isFullscreen && "cursor-move")}
         onMouseDown={handleMouseDown}
       >
-         <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3">
           <div className="h-8 w-8 rounded-full overflow-hidden flex-shrink-0">
             <img src={aiIcon} alt="AI Assistant" className="h-full w-full object-cover" />
           </div>

@@ -20,7 +20,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuthStore } from "@/stores";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
-import AIAssistantPage from "./pages/AIAssitantPage";
+import AIAssistantPage from "./pages/AIAssistantPage";
 import Inventory from "./pages/Inventory";
 import Analytics from "./pages/Analytics";
 import WarehouseMap from "./pages/WarehouseMap";

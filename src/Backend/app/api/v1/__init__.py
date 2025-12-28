@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, users, products, inventory, sales, ai, dashboard, warehouse_config, search, alerts, notifications, websocket, waves, shipments
+from app.api.v1 import auth, users, products, inventory, sales, ai, dashboard, warehouse_config, search, alerts, notifications, websocket, waves, shipments, reports
 
 api_router = APIRouter()
 
@@ -18,3 +18,5 @@ api_router.include_router(notifications.router, prefix="/notifications", tags=["
 api_router.include_router(websocket.router, tags=["websocket"])
 api_router.include_router(waves.router, prefix="/waves", tags=["waves"])
 api_router.include_router(shipments.router, prefix="/shipments", tags=["shipments"])
+api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
+

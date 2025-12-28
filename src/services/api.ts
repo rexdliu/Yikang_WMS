@@ -1472,4 +1472,220 @@ export interface ShipmentTracking {
   }>;
 }
 
+// ========== Report Types ==========
+
+export type ReportStatus = 'generating' | 'completed' | 'failed';
+export type InsightType = 'suggestion' | 'trend' | 'warning';
+export type InsightPriority = 'high' | 'medium' | 'low';
+
+export interface AIReport {
+  id: number;
+  userId: number;
+  title: string;
+  query: string;
+  content?: string;
+  summary?: string;
+  status: ReportStatus;
+  errorMessage?: string;
+  isStarred: boolean;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface AIInsight {
+  id: number;
+  type: InsightType;
+  priority: InsightPriority;
+  title: string;
+  message: string;
+  isHandled: boolean;
+  createdAt: string;
+}
+
+export interface ReportStats {
+  pendingInsights: number;
+  weeklyReports: number;
+  accuracyRate: number;
+  lastUpdated: string;
+}
+
+export interface ReportListResponse {
+  reports: AIReport[];
+  total: number;
+}
+
+export interface InsightListResponse {
+  insights: AIInsight[];
+  pendingCount: number;
+}
+
+// Report API methods (added to ApiService class above)
+// These are injected at runtime
+
 export const apiService = new ApiService();
+
+// Helper to get auth headers
+const getAuthHeaders = () => {
+  const token = apiService.getToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+};
+
+// Add report methods to apiService
+Object.assign(apiService, {
+  // Report Stats
+  async getReportStats(): Promise<ReportStats> {
+    const res = await fetch('/api/v1/reports/stats', { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch report stats');
+    const data = await res.json();
+    return {
+      pendingInsights: data.pending_insights,
+      weeklyReports: data.weekly_reports,
+      accuracyRate: data.accuracy_rate,
+      lastUpdated: data.last_updated
+    };
+  },
+
+  // Generate Report
+  async generateReport(query: string, title?: string): Promise<AIReport> {
+    const res = await fetch('/api/v1/reports/generate', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ query, title })
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to generate report');
+    }
+    const data = await res.json();
+    return {
+      id: data.id,
+      userId: data.user_id,
+      title: data.title,
+      query: data.query,
+      content: data.content,
+      summary: data.summary,
+      status: data.status,
+      errorMessage: data.error_message,
+      isStarred: data.is_starred,
+      createdAt: data.created_at,
+      completedAt: data.completed_at
+    };
+  },
+
+  // List Reports
+  async listReports(skip = 0, limit = 20): Promise<ReportListResponse> {
+    const res = await fetch(`/api/v1/reports/list?skip=${skip}&limit=${limit}`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to fetch reports');
+    const data = await res.json();
+    return {
+      reports: data.reports.map((r: any) => ({
+        id: r.id,
+        userId: r.user_id,
+        title: r.title,
+        query: r.query,
+        content: r.content,
+        summary: r.summary,
+        status: r.status,
+        errorMessage: r.error_message,
+        isStarred: r.is_starred,
+        createdAt: r.created_at,
+        completedAt: r.completed_at
+      })),
+      total: data.total
+    };
+  },
+
+  // Get Single Report
+  async getReport(reportId: number): Promise<AIReport> {
+    const res = await fetch(`/api/v1/reports/${reportId}`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error('Report not found');
+    const data = await res.json();
+    return {
+      id: data.id,
+      userId: data.user_id,
+      title: data.title,
+      query: data.query,
+      content: data.content,
+      summary: data.summary,
+      status: data.status,
+      errorMessage: data.error_message,
+      isStarred: data.is_starred,
+      createdAt: data.created_at,
+      completedAt: data.completed_at
+    };
+  },
+
+  // Star Report
+  async starReport(reportId: number, starred: boolean): Promise<void> {
+    const res = await fetch(`/api/v1/reports/${reportId}/star?starred=${starred}`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to star report');
+  },
+
+  // Delete Report
+  async deleteReport(reportId: number): Promise<void> {
+    const res = await fetch(`/api/v1/reports/${reportId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to delete report');
+  },
+
+  // Export Report (returns download URL)
+  getReportExportUrl(reportId: number, format: 'markdown' | 'html'): string {
+    return `/api/v1/reports/${reportId}/export/${format}`;
+  },
+
+  // Preview Report URL
+  getReportPreviewUrl(reportId: number): string {
+    return `/api/v1/reports/${reportId}/preview`;
+  },
+
+  // List Insights
+  async listInsights(includeHandled = false, limit = 10): Promise<InsightListResponse> {
+    const res = await fetch(
+      `/api/v1/reports/insights/list?include_handled=${includeHandled}&limit=${limit}`,
+      { headers: getAuthHeaders() }
+    );
+    if (!res.ok) throw new Error('Failed to fetch insights');
+    const data = await res.json();
+    return {
+      insights: data.insights.map((i: any) => ({
+        id: i.id,
+        type: i.type,
+        priority: i.priority,
+        title: i.title,
+        message: i.message,
+        isHandled: i.is_handled,
+        createdAt: i.created_at
+      })),
+      pendingCount: data.pending_count
+    };
+  },
+
+  // Generate New Insights
+  async generateInsights(): Promise<{ success: boolean; generatedCount: number }> {
+    const res = await fetch('/api/v1/reports/insights/generate', {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to generate insights');
+    const data = await res.json();
+    return { success: data.success, generatedCount: data.generated_count };
+  },
+
+  // Mark Insight as Handled
+  async handleInsight(insightId: number): Promise<void> {
+    const res = await fetch(`/api/v1/reports/insights/${insightId}/handle`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to handle insight');
+  }
+});

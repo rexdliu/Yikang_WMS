@@ -12,6 +12,7 @@ from app.models.activity_log import ActivityLog
 from app.models.notification import Notification
 from app.models.wave import Wave, WaveStatus, WavePriority
 from app.models.shipment import Shipment, ShipmentStatus
+from app.models.report import Report, AIInsight, ReportStatus, InsightType, InsightPriority
 
 __all__ = [
     "User",
@@ -30,4 +31,10 @@ __all__ = [
     "WavePriority",
     "Shipment",
     "ShipmentStatus",
+    "Report",
+    "AIInsight",
+    "ReportStatus",
+    "InsightType",
+    "InsightPriority",
 ]
+
