@@ -282,7 +282,7 @@ const ReportHistoryList: React.FC<{
   onStar: (id: string) => void;
   onDelete: (id: string) => void;
   onPreview: (report: ReportHistory) => void;
-  onDownload: (report: ReportHistory) => void;
+  onDownload: (report: ReportHistory, format: 'md' | 'docx') => void;
 }> = ({ history, onStar, onDelete, onPreview, onDownload }) => (
   <Card>
     <CardHeader>
@@ -331,13 +331,23 @@ const ReportHistoryList: React.FC<{
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      title="下载"
-                      onClick={() => onDownload(report)}
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      title="下载 Markdown"
+                      onClick={() => onDownload(report, 'md')}
                       disabled={report.status !== 'completed'}
                     >
-                      <Download className="h-3 w-3" />
+                      .md
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      title="下载 Word"
+                      onClick={() => onDownload(report, 'docx')}
+                      disabled={report.status !== 'completed'}
+                    >
+                      .docx
                     </Button>
                     <Button
                       variant="ghost"
@@ -442,9 +452,10 @@ const Reports: React.FC = () => {
     setPreviewReport(report);
   };
 
-  const handleDownloadReport = (report: ReportHistory) => {
-    // 创建 Markdown 内容
-    const content = `# ${report.name}
+  const handleDownloadReport = (report: ReportHistory, format: 'md' | 'docx' = 'md') => {
+    if (format === 'md') {
+      // Markdown 格式
+      const content = `# ${report.name}
 
 **生成时间**: ${report.generatedAt.toLocaleString('zh-CN')}
 
@@ -452,22 +463,50 @@ const Reports: React.FC = () => {
 
 ${report.content || '报告内容不可用'}
 `;
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+      downloadBlob(blob, `${report.name}.md`);
+    } else {
+      // DOCX 格式 (使用简单的 Office Open XML)
+      const docxContent = generateDocxContent(report);
+      const blob = new Blob([docxContent], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      });
+      downloadBlob(blob, `${report.name}.docx`);
+    }
 
-    // 创建 Blob 并下载
-    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    toast({
+      title: "下载成功",
+      description: `报告 "${report.name}" 已下载为 ${format.toUpperCase()} 格式`,
+    });
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${report.name}.md`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
 
-    toast({
-      title: "下载成功",
-      description: `报告 "${report.name}" 已下载`,
-    });
+  // 生成简单的 DOCX 内容 (RTF 格式作为替代，兼容性更好)
+  const generateDocxContent = (report: ReportHistory): string => {
+    const content = report.content || '报告内容不可用';
+    // 使用 RTF 格式，Word 可以直接打开
+    const rtfContent = `{\\rtf1\\ansi\\deff0
+{\\fonttbl{\\f0 SimSun;}{\\f1 Arial;}}
+{\\colortbl;\\red0\\green0\\blue0;\\red70\\green70\\blue70;}
+\\f0\\fs28\\b ${report.name}\\b0\\par
+\\par
+\\cf2\\fs20 生成时间: ${report.generatedAt.toLocaleString('zh-CN')}\\cf1\\par
+\\par
+\\pard\\sl360\\slmult1
+\\fs22 ${content.replace(/\n/g, '\\par ')}
+\\par
+}`;
+    return rtfContent;
   };
 
   const visibleInsights = showAllInsights ? insights : insights.slice(0, 2);
@@ -696,9 +735,13 @@ ${report.content || '报告内容不可用'}
             <Button variant="outline" onClick={() => setPreviewReport(null)}>
               关闭
             </Button>
-            <Button onClick={() => previewReport && handleDownloadReport(previewReport)}>
+            <Button variant="outline" onClick={() => previewReport && handleDownloadReport(previewReport, 'md')}>
               <Download className="h-4 w-4 mr-2" />
-              下载报告
+              下载 .md
+            </Button>
+            <Button onClick={() => previewReport && handleDownloadReport(previewReport, 'docx')}>
+              <FileText className="h-4 w-4 mr-2" />
+              下载 .docx
             </Button>
           </div>
         </DialogContent>

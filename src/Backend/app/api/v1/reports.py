@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from app.core.database import get_db
-from app.core.security import get_current_active_user
+from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.models.report import Report, AIInsight, ReportStatus, InsightType, InsightPriority
 from app.services.report_service import ReportService, InsightService
@@ -78,7 +78,7 @@ class ReportStatsResponse(BaseModel):
 @router.get("/stats", response_model=ReportStatsResponse)
 async def get_report_stats(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """获取报告统计数据"""
     insight_service = InsightService(db)
@@ -112,7 +112,7 @@ async def generate_report(
     request: ReportCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     生成 AI 报告
@@ -137,7 +137,7 @@ async def list_reports(
     skip: int = 0,
     limit: int = 20,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """获取用户的报告列表"""
     report_service = ReportService(db)
@@ -160,7 +160,7 @@ async def list_reports(
 async def get_report(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """获取单个报告详情"""
     report_service = ReportService(db)
@@ -177,7 +177,7 @@ async def star_report(
     report_id: int,
     starred: bool = True,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """收藏/取消收藏报告"""
     report_service = ReportService(db)
@@ -193,7 +193,7 @@ async def star_report(
 async def delete_report(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """删除报告"""
     report_service = ReportService(db)
@@ -209,7 +209,7 @@ async def delete_report(
 async def export_report_markdown(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """导出报告为 Markdown"""
     report_service = ReportService(db)
@@ -236,7 +236,7 @@ async def export_report_markdown(
 async def export_report_html(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """导出报告为 HTML (可用于打印为 PDF)"""
     report_service = ReportService(db)
@@ -257,7 +257,7 @@ async def export_report_html(
 async def preview_report(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """预览报告 (HTML 格式)"""
     report_service = ReportService(db)
@@ -283,7 +283,7 @@ async def list_insights(
     include_handled: bool = False,
     limit: int = 10,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """获取洞察列表"""
     insight_service = InsightService(db)
@@ -304,7 +304,7 @@ async def list_insights(
 @router.post("/insights/generate")
 async def generate_insights(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     生成新的洞察
@@ -339,7 +339,7 @@ async def generate_insights(
 async def handle_insight(
     insight_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """标记洞察为已处理"""
     insight_service = InsightService(db)

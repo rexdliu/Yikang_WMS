@@ -170,7 +170,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     # 检查端口
     echo ""
     echo "🔍 端口监听状态："
-    sudo netstat -tulpn | grep -E ':(80|8001|8003)' || true
+    sudo netstat -tulpn | grep -E ':(80|8080)' || true
 else
     echo "⏭️  跳过服务重启"
 fi

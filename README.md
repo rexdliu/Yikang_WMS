@@ -169,7 +169,7 @@ npm run dev
 
 #### 6. 访问应用
 
-- 前端: http://localhost:8003
+- 前端: http://localhost:8080
 - 后端 API: http://localhost:8001
 - API 文档: http://localhost:8001/docs
 
