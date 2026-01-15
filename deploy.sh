@@ -6,7 +6,7 @@
 
 set -e  # 遇到错误立即退出
 
-PROJECT_DIR="/root/Product_Warehouse"
+PROJECT_DIR="/root/Yikang_WMS"
 BACKEND_DIR="$PROJECT_DIR/src/Backend"
 VENV_DIR="$PROJECT_DIR/.venv"
 NGINX_CONF_SOURCE="$PROJECT_DIR/nginx/warehouse.conf"

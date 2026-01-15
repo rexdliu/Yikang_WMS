@@ -51,8 +51,8 @@ ssh root@your-ecs-ip
 
 # 2. 克隆项目
 cd /root
-git clone https://github.com/yourusername/Product_Warehouse.git
-cd Product_Warehouse
+git clone https://github.com/yourusername/Yikang_WMS.git
+cd Yikang_WMS
 
 # 3. 复制并配置环境变量
 cp .env.production.example .env

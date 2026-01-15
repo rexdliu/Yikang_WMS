@@ -19,8 +19,8 @@ ssh root@your-ecs-ip
 
 # 克隆项目
 cd /root
-git clone https://github.com/rexdliu/Yikang_WMS.git Product_Warehouse
-cd Product_Warehouse
+git clone https://github.com/rexdliu/Yikang_WMS.git Yikang_WMS
+cd Yikang_WMS
 
 # 配置环境变量
 cp .env.production.example .env
@@ -72,8 +72,8 @@ nginx -v
 
 ```bash
 cd /root
-git clone https://github.com/rexdliu/Yikang_WMS.git Product_Warehouse
-cd Product_Warehouse
+git clone https://github.com/rexdliu/Yikang_WMS.git Yikang_WMS
+cd Yikang_WMS
 ```
 
 ### 3. 配置环境变量
@@ -107,7 +107,7 @@ VITE_AMAP_KEY=your-key
 ### 4. 安装后端依赖
 
 ```bash
-cd /root/Product_Warehouse
+cd /root/Yikang_WMS
 
 # 创建虚拟环境
 python3 -m venv .venv

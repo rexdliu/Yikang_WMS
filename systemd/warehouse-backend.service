@@ -6,16 +6,16 @@ After=network.target
 Type=simple
 User=root
 Group=root
-WorkingDirectory=/root/Product_Warehouse/src/Backend
+WorkingDirectory=/root/Yikang_WMS/src/Backend
 
 # 环境变量
-Environment="PYTHONPATH=/root/Product_Warehouse/src/Backend"
+Environment="PYTHONPATH=/root/Yikang_WMS/src/Backend"
 # 使用 .env（测试数据库 warehouse_test_data）
-# 生产环境请改为: EnvironmentFile=/root/Product_Warehouse/.env.production
-EnvironmentFile=/root/Product_Warehouse/.env
+# 生产环境请改为: EnvironmentFile=/root/Yikang_WMS/.env.production
+EnvironmentFile=/root/Yikang_WMS/.env
 
 # 启动命令
-ExecStart=/root/Product_Warehouse/.venv/bin/uvicorn app.main:app \
+ExecStart=/root/Yikang_WMS/.venv/bin/uvicorn app.main:app \
     --host 127.0.0.1 \
     --port 8001 \
     --workers 4 \
