@@ -75,8 +75,8 @@ Product_Warehouse/
 
 | 变量名 | 值 | 说明 |
 |--------|-----|------|
-| `VITE_API_URL` | `https://www.rexp.top/api/v1` | 后端 API 地址 |
-| `VITE_WS_URL` | `wss://www.rexp.top/ws` | WebSocket 地址 |
+| `VITE_API_URL` | `https://api.rexp.top/api/v1` | 后端 API 地址 |
+| `VITE_WS_URL` | `wss://api.rexp.top/ws` | WebSocket 地址 |
 | `VITE_BASE_URL` | `/` | 基础路径 |
 | `VITE_NODE_ENV` | `production` | 环境标识 |
 | `VITE_BYPASS_AUTH` | `false` | 禁用认证绕过 |
@@ -155,11 +155,11 @@ sudo systemctl restart warehouse-backend
   "rewrites": [
     {
       "source": "/api/:path*",         // API 请求代理到后端
-      "destination": "https://www.rexp.top/api/:path*"
+      "destination": "https://api.rexp.top/api/:path*"
     },
     {
       "source": "/static/:path*",      // 静态文件代理
-      "destination": "https://www.rexp.top/static/:path*"
+      "destination": "https://api.rexp.top/static/:path*"
     },
     {
       "source": "/((?!api|static).*)", // SPA 路由回退
@@ -173,8 +173,8 @@ sudo systemctl restart warehouse-backend
 
 | 配置项 | ECS 部署 | Vercel 部署 |
 |--------|----------|-------------|
-| `VITE_API_URL` | `/api/v1` | `https://www.rexp.top/api/v1` |
-| `VITE_WS_URL` | `wss://www.rexp.top/ws` | `wss://www.rexp.top/ws` |
+| `VITE_API_URL` | `/api/v1` | `https://api.rexp.top/api/v1` |
+| `VITE_WS_URL` | `wss://api.rexp.top/ws` | `wss://api.rexp.top/ws` |
 | API 代理 | Nginx 反向代理 | vercel.json rewrites |
 | HTTPS | 手动配置证书 | 自动配置 |
 | CDN | 无/需单独配置 | 自动全球 CDN |

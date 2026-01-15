@@ -6,11 +6,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://www.rexp.top/api/:path*"
+      "destination": "https://api.rexp.top/api/:path*"
     },
     {
       "source": "/static/:path*",
-      "destination": "https://www.rexp.top/static/:path*"
+      "destination": "https://api.rexp.top/static/:path*"
     },
     {
       "source": "/((?!api|static|assets|favicon.ico).*)",

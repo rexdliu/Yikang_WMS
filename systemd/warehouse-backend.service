@@ -1,20 +1,21 @@
 [Unit]
 Description=Product Warehouse Backend Service
-After=network.target mysql.service
-Wants=mysql.service
+After=network.target
 
 [Service]
 Type=simple
-User=user
-Group=user
-WorkingDirectory=/home/user/Product_Warehouse/src/Backend
+User=root
+Group=root
+WorkingDirectory=/root/Product_Warehouse/src/Backend
 
 # 环境变量
-Environment="PYTHONPATH=/home/user/Product_Warehouse/src/Backend"
-EnvironmentFile=/home/user/Product_Warehouse/.env.production
+Environment="PYTHONPATH=/root/Product_Warehouse/src/Backend"
+# 使用 .env（测试数据库 warehouse_test_data）
+# 生产环境请改为: EnvironmentFile=/root/Product_Warehouse/.env.production
+EnvironmentFile=/root/Product_Warehouse/.env
 
 # 启动命令
-ExecStart=/home/user/Product_Warehouse/.venv/bin/uvicorn app.main:app \
+ExecStart=/root/Product_Warehouse/.venv/bin/uvicorn app.main:app \
     --host 127.0.0.1 \
     --port 8001 \
     --workers 4 \
@@ -35,3 +36,4 @@ SyslogIdentifier=warehouse-backend
 
 [Install]
 WantedBy=multi-user.target
+
