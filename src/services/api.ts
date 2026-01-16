@@ -400,7 +400,7 @@ class ApiService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // 如果设置了 API 基础地址，使用绝对 URL
+    // 如果设置了 API 基础地址，使用绝对 L
     const fullUrl = url.startsWith('/api') || url.startsWith('/health')
       ? `${this.apiBase}${url}`
       : url;
