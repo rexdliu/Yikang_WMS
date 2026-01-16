@@ -386,6 +386,9 @@ class ApiService {
     this.token = null;
     localStorage.removeItem('access_token');
   }
+  // API 基础地址 - 生产环境使用绝对 URL
+  private apiBase = import.meta.env.VITE_API_BASE || '';
+
   private async request<T>(url: string, init?: RequestInit): Promise<T> {
     const token = this.getToken();
     const headers: Record<string, string> = {
@@ -397,7 +400,12 @@ class ApiService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
+    // 如果设置了 API 基础地址，使用绝对 URL
+    const fullUrl = url.startsWith('/api') || url.startsWith('/health')
+      ? `${this.apiBase}${url}`
+      : url;
+
+    const response = await fetch(fullUrl, {
       ...init,
       headers,
     });
