@@ -51,7 +51,7 @@ cd /Users/liu/Desktop/Yikang\ product_warehouse && npm run dev:full
 2. **配置 Gemini**
    - 打开 http://localhost → 设置 → 模型供应商
    - 添加 Google Gemini
-   - API Key: `AIzaSyBzuIoxQoYV4Dfa1Z01-naeC0eYZasrbR4`
+   - API Key: ``
 
 3. **切换应用模型**
    - 工作室 → Yikang 应用
